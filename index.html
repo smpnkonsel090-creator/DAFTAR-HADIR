@@ -3,30 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QR Scanner Test</title>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
+  <title>Absensi Scanner Web</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="config.js"></script>
+  <script type="module" src="scanner.js"></script>
 </head>
 <body>
-  <h2>QR Scanner Test</h2>
+  <h2>QR Scanner Absensi</h2>
+
+  <button id="startBtn">Mulai Scanner</button>
+
   <div id="reader" style="width:400px;height:300px;"></div>
   <p id="status">Menunggu scan...</p>
-  <script>
-    const html5QrCode = new Html5Qrcode("reader");
-
-    Html5Qrcode.getCameras().then(cameras => {
-      if (cameras && cameras.length) {
-        const cam = cameras[0]; // pilih kamera pertama
-        html5QrCode.start(
-          { deviceId: { exact: cam.id } },
-          { fps: 10, qrbox: 250 },
-          decodedText => document.getElementById("status").innerText = "QR: " + decodedText
-        );
-      } else {
-        document.getElementById("status").innerText = "Tidak ada kamera";
-      }
-    }).catch(err => {
-      document.getElementById("status").innerText = "Error: " + err;
-    });
-  </script>
 </body>
 </html>
