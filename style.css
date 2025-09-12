@@ -6,11 +6,14 @@ body {
 
 #reader {
   margin: 0 auto;
+  border: 2px solid #ccc;
 }
 
-.msg {
-  font-weight: bold;
-  margin-top: 15px;
+button {
+  margin: 10px;
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
 }
 
 .msg.info { color: blue; }
