@@ -11,7 +11,7 @@ function tampilPesan(teks, tipe = "info") {
 
 function todayKey() {
   const d = new Date();
-  return d.toISOString().split("T")[0]; // YYYY-MM-DD
+  return d.toISOString().split("T")[0];
 }
 
 function parseTime(hhmm) {
@@ -115,14 +115,65 @@ async function updateStatusAbsensi(nis) {
 }
 
 // ================= Scanner Kamera =================
+let html5QrCode = null;
+let daftarKamera = [];
+let currentCamId = null;
+
+async function mulaiScanner(deviceId) {
+  try {
+    if (html5QrCode) {
+      await html5QrCode.stop().catch(()=>{});
+      html5QrCode.clear().catch(()=>{});
+    } else {
+      html5QrCode = new Html5Qrcode("reader");
+    }
+
+    await html5QrCode.start(
+      { deviceId: { exact: deviceId } },
+      { fps: 10, qrbox: 250 },
+      (decodedText) => updateStatusAbsensi(decodedText.trim())
+    );
+    currentCamId = deviceId;
+    tampilPesan("Kamera aktif", "info");
+  } catch (err) {
+    tampilPesan("Gagal memulai kamera: " + err, "error");
+  }
+}
+
+// ================= Inisialisasi Kamera =================
+async function initKamera() {
+  try {
+    daftarKamera = await Html5Qrcode.getCameras();
+    if (!daftarKamera || daftarKamera.length === 0) {
+      tampilPesan("Tidak ada kamera terdeteksi", "error");
+      return;
+    }
+
+    // Pilih kamera belakang jika ada
+    const camBack = daftarKamera.find(c => c.label.toLowerCase().includes("back")) || daftarKamera[0];
+    await mulaiScanner(camBack.id);
+
+    // Tombol depan / belakang
+    const btnFront = document.getElementById("btnFront");
+    const btnBack = document.getElementById("btnBack");
+    if (btnFront) btnFront.onclick = () => {
+      const camFront = daftarKamera.find(c => c.label.toLowerCase().includes("front")) || daftarKamera[0];
+      mulaiScanner(camFront.id);
+    };
+    if (btnBack) btnBack.onclick = () => {
+      const cam = daftarKamera.find(c => c.label.toLowerCase().includes("back")) || daftarKamera[0];
+      mulaiScanner(cam.id);
+    };
+
+  } catch (err) {
+    tampilPesan("Gagal inisialisasi kamera: " + err, "error");
+  }
+}
+
+// ================= Start =================
 (async () => {
   const bolehScan = await inisialisasiAbsensi();
   if (!bolehScan) return;
 
-  const html5QrCode = new Html5Qrcode("reader");
-  html5QrCode.start(
-    { facingMode: "environment" }, // langsung kamera belakang
-    { fps: 10, qrbox: 250 },
-    (decodedText) => updateStatusAbsensi(decodedText.trim())
-  ).catch(err => tampilPesan("Kamera gagal aktif: " + err, "error"));
+  await initKamera();
 })();
