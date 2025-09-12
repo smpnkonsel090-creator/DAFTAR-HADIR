@@ -1,0 +1,18 @@
+body {
+  font-family: Arial, sans-serif;
+  text-align: center;
+  margin-top: 20px;
+}
+
+#reader {
+  margin: 0 auto;
+}
+
+.msg {
+  font-weight: bold;
+  margin-top: 15px;
+}
+
+.msg.info { color: blue; }
+.msg.success { color: green; }
+.msg.error { color: red; }
