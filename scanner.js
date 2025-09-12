@@ -10,8 +10,7 @@ function tampilPesan(teks, tipe = "info") {
 }
 
 function todayKey() {
-  const d = new Date();
-  return d.toISOString().split("T")[0];
+  return new Date().toISOString().split("T")[0];
 }
 
 function parseTime(hhmm) {
@@ -38,21 +37,18 @@ const toleransiMenit = 3;
 // ================= Inisialisasi Absensi =================
 async function inisialisasiAbsensi() {
   try {
-    const settingRef = doc(db, "pengaturan", "jamSekolah");
-    const snap = await getDoc(settingRef);
+    const snap = await getDoc(doc(db, "pengaturan", "jamSekolah"));
     if (snap.exists()) {
       const data = snap.data();
       jamDatang = data.jamDatang || jamDatang;
       jamPulang = data.jamPulang || jamPulang;
       tanggalLibur = data.tanggalLibur || [];
     }
-
     const today = todayKey();
     if (tanggalLibur.includes(today)) {
       tampilPesan("Hari ini libur, tidak perlu absen.", "info");
       return false;
     }
-
     tampilPesan("Absensi hari ini siap discan.", "info");
     return true;
   } catch (err) {
@@ -76,7 +72,7 @@ async function updateStatusAbsensi(nis) {
   };
 
   if (["IZIN", "SAKIT"].includes(data.status)) {
-    tampilPesan("Siswa dengan status " + data.status + " tidak bisa absen.", "error");
+    tampilPesan(`Siswa dengan status ${data.status} tidak bisa absen.`, "error");
     return;
   }
 
@@ -131,7 +127,7 @@ async function mulaiScanner(deviceId) {
     await html5QrCode.start(
       { deviceId: { exact: deviceId } },
       { fps: 10, qrbox: 250 },
-      (decodedText) => updateStatusAbsensi(decodedText.trim())
+      decodedText => updateStatusAbsensi(decodedText.trim())
     );
     currentCamId = deviceId;
     tampilPesan("Kamera aktif", "info");
@@ -140,7 +136,6 @@ async function mulaiScanner(deviceId) {
   }
 }
 
-// ================= Inisialisasi Kamera =================
 async function initKamera() {
   try {
     daftarKamera = await Html5Qrcode.getCameras();
@@ -149,11 +144,11 @@ async function initKamera() {
       return;
     }
 
-    // Pilih kamera belakang jika ada
+    // Pilih kamera belakang default
     const camBack = daftarKamera.find(c => c.label.toLowerCase().includes("back")) || daftarKamera[0];
     await mulaiScanner(camBack.id);
 
-    // Tombol depan / belakang
+    // Tombol switch
     const btnFront = document.getElementById("btnFront");
     const btnBack = document.getElementById("btnBack");
     if (btnFront) btnFront.onclick = () => {
@@ -164,7 +159,6 @@ async function initKamera() {
       const cam = daftarKamera.find(c => c.label.toLowerCase().includes("back")) || daftarKamera[0];
       mulaiScanner(cam.id);
     };
-
   } catch (err) {
     tampilPesan("Gagal inisialisasi kamera: " + err, "error");
   }
@@ -174,6 +168,5 @@ async function initKamera() {
 (async () => {
   const bolehScan = await inisialisasiAbsensi();
   if (!bolehScan) return;
-
   await initKamera();
 })();
