@@ -1,16 +1,21 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Absensi Scanner Web</title>
-  <link rel="stylesheet" href="style.css">
-  <script type="module" src="config.js"></script>
-  <script type="module" src="scanner.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Absensi Scanner Web</title>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="config.js"></script>
+<script type="module" src="scanner.js"></script>
 </head>
 <body>
-  <h2>QR Scanner Absensi</h2>
-  <div id="reader" style="width:400px;height:300px;"></div>
-  <p id="status">Menunggu scan...</p>
+<h2>QR Scanner Absensi</h2>
+<div id="reader" style="width:400px;height:300px;"></div>
+<p id="status">Menunggu scan...</p>
+
+<div>
+  <button id="btnFront">Kamera Depan</button>
+  <button id="btnBack">Kamera Belakang</button>
+</div>
 </body>
 </html>
