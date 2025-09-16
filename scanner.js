@@ -2,10 +2,14 @@ import { Html5Qrcode } from "https://unpkg.com/html5-qrcode@2.3.8/minified/html5
 import { db } from "./config.js";
 import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
+const startBtn = document.getElementById("startBtn");
+const statusEl = document.getElementById("status");
+
+let html5QrCode = null;
+
 function tampilPesan(teks, tipe = "info") {
-  const el = document.getElementById("status");
-  el.textContent = teks;
-  el.className = `msg ${tipe}`;
+  statusEl.textContent = teks;
+  statusEl.className = `msg ${tipe}`;
 }
 
 // Update absensi ke Firestore
@@ -27,28 +31,43 @@ async function updateStatusAbsensi(nis) {
   if (data.status === "TA") {
     data.status = "TK";
     data.jamDatang = menit;
-    tampilPesan("Absen datang tercatat.", "success");
+    tampilPesan(`NIS ${nis} absen datang tercatat.`, "success");
   } else if (data.status === "TK") {
     if (data.jamDatang) {
       data.status = "Hadir";
       data.jamPulang = menit;
-      tampilPesan("Absen pulang tercatat, lengkap hadir.", "success");
+      tampilPesan(`NIS ${nis} absen pulang tercatat, lengkap hadir.`, "success");
     }
   } else if (data.status === "Hadir") {
-    tampilPesan("Sudah lengkap absen hari ini.", "info");
+    tampilPesan(`NIS ${nis} sudah lengkap absen hari ini.`, "info");
     return;
   }
 
   await setDoc(absRef, data);
 }
 
-// Event klik tombol Start
-document.getElementById("startBtn").addEventListener("click", async () => {
-  const html5QrCode = new Html5Qrcode("reader");
-  await html5QrCode.start(
-    { facingMode: "environment" }, // kamera belakang
-    { fps: 10, qrbox: 250 },
-    (decodedText) => updateStatusAbsensi(decodedText.trim())
-  ).catch(err => tampilPesan("Kamera gagal aktif: " + err, "error"));
-  tampilPesan("Kamera aktif, silakan scan QR.", "info");
+// Toggle Start/Stop
+startBtn.addEventListener("click", async () => {
+  if (html5QrCode) {
+    // stop scanner
+    await html5QrCode.stop();
+    html5QrCode.clear();
+    html5QrCode = null;
+    tampilPesan("Scanner dihentikan.", "info");
+    startBtn.textContent = "Mulai Scanner";
+  } else {
+    // start scanner
+    html5QrCode = new Html5Qrcode("reader");
+    html5QrCode.start(
+      { facingMode: "environment" }, // kamera belakang
+      { fps: 10, qrbox: 250 },
+      (decodedText) => updateStatusAbsensi(decodedText.trim())
+    ).then(() => {
+      tampilPesan("Kamera aktif, arahkan ke QR.", "info");
+      startBtn.textContent = "Stop Scanner";
+    }).catch(err => {
+      tampilPesan("Kamera gagal aktif: " + err, "error");
+      html5QrCode = null;
+    });
+  }
 });
