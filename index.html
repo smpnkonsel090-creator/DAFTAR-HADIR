@@ -108,17 +108,17 @@ function getToday() {
   return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 }
 
-// Load guru
+// Load guru wali
 db.collection("guru_wali").get().then(snapshot=>{
   snapshot.forEach(doc=>{
     const data = doc.data();
     allGuru.push({
       nama: data.nama,
-      nip: data.nip,
-      daftarNIS: (data.daftar_nis||[]).map(nis=>String(nis))
+      nip: doc.id, // pakai id dokumen sebagai nip
+      daftarNIS: (data.daftar_nis || []).map(nis => String(nis))
     });
     const opt = document.createElement("option");
-    opt.value = data.nip;
+    opt.value = doc.id;
     opt.textContent = data.nama;
     filterGuru.appendChild(opt);
   });
@@ -166,11 +166,19 @@ function applyFilter(){
   const selectedGuru = filterGuru.value;
   let data = allSiswa;
 
-  if(selectedKelas) data = data.filter(s=>s.kelas===selectedKelas);
-  if(selectedGuru){
-    const guru = allGuru.find(g=>String(g.nip)===String(selectedGuru));
-    data = data.filter(s=>guru?.daftarNIS?.includes(String(s.nis)));
+  if(selectedKelas) {
+    data = data.filter(s => s.kelas === selectedKelas);
   }
+
+  if(selectedGuru) {
+    const guru = allGuru.find(g => String(g.nip) === String(selectedGuru));
+    if (guru && guru.daftarNIS && guru.daftarNIS.length > 0) {
+      data = data.filter(s => guru.daftarNIS.includes(String(s.nis)));
+    } else {
+      data = [];
+    }
+  }
+
   updateTable(data);
   return data;
 }
@@ -212,20 +220,18 @@ function updateRekap(){
     rekapBody.appendChild(r);
   };
 
-  // 1. Total siswa
+  // Total siswa
   addRow("Total Siswa", total);
-
-  // 2. Per status
   addRow("Hadir", hadir.length, hadir);
   addRow("Izin", izin.length, izin);
   addRow("Sakit", sakit.length, sakit);
   addRow("Tanpa Keterangan", ta.length, ta);
   addRow("Terlambat", tk.length, tk);
 
-  // 3. Per kelas
+  // Per kelas
   Object.keys(perKelas).sort().forEach(k=>addRow("Kelas "+k, perKelas[k], [], k));
 
-  // 4. Per guru
+  // Per guru
   Object.keys(perGuru).sort().forEach(g=>{
     const guruObj = allGuru.find(gr=>gr.nama===g);
     const guruNip = guruObj ? guruObj.nip : null;
