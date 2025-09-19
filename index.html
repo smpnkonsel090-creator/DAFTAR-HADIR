@@ -18,15 +18,16 @@ header h3 { margin:0; font-size:16px; font-weight:normal; }
 #sidebar select { background:white; color:black; border:1px solid #007bff; }
 #content { flex:1; padding:20px; overflow:auto; }
 
-#absensi-wrapper { background:white; border-radius:10px; overflow-y:auto; max-height:calc(50% - 20px); border:2px solid #007bff; margin-bottom:20px; }
+#absensi-wrapper { background:white; border-radius:10px; overflow-y:auto; max-height:50%; border:2px solid #007bff; margin-bottom:20px; }
 #absensi-table, #rekap-table { width:100%; border-collapse:collapse; margin-bottom:20px; }
 #absensi-table th, #absensi-table td, #rekap-table th, #rekap-table td { border:1px solid #ccc; padding:8px; }
 #absensi-table th, #rekap-table th { background-color:#007bff; color:white; position:sticky; top:0; z-index:1; text-align:center; }
 #absensi-table td, #rekap-table td { text-align:left; }
-#absensi-table td:nth-child(1), #absensi-table td:nth-child(3),
-#absensi-table td:nth-child(4), #absensi-table td:nth-child(5),
+#absensi-table td:nth-child(1) { text-align:center; } /* Nomor urut */
+#absensi-table td:nth-child(2) { text-align:center; } /* NIS */
+#absensi-table td:nth-child(3) { text-align:left; font-weight:bold; } /* Nama */
+#absensi-table td:nth-child(4), #absensi-table td:nth-child(5) { text-align:center; } /* Jam datang/pulang */
 #absensi-table td:nth-child(6), #absensi-table td:nth-child(7) { text-align:center; }
-#absensi-table td:nth-child(2) { text-align:left; font-weight:bold; }
 #rekap-table td:nth-child(1), #rekap-table td { cursor:pointer; }
 /* Responsif */
 @media(max-width:1000px){
@@ -61,6 +62,7 @@ header h3 { margin:0; font-size:16px; font-weight:normal; }
             <table id="absensi-table">
                 <thead>
                     <tr>
+                        <th>No</th>
                         <th>NIS</th>
                         <th>Nama</th>
                         <th>Kelas</th>
@@ -118,7 +120,6 @@ db.collection("siswa").get().then(snapshot=>{
         allSiswa.push(s);
         kelasSet.add(s.kelas);
     });
-    // Populate filter per kelas
     kelasSet.forEach(k => {
         const opt = document.createElement("option");
         opt.value = k; opt.textContent = k;
@@ -142,11 +143,21 @@ db.collection("guru_wali").get().then(snapshot=>{
 // Update tabel absensi
 function updateTable(data){
     absensiBody.innerHTML="";
-    data.forEach(siswa=>{
+    // Urutkan berdasarkan jamDatang, jika sama urutkan jamPulang
+    data.sort((a,b)=>{
+        const tA = a.jamDatang ? a.jamDatang.seconds : 0;
+        const tB = b.jamDatang ? b.jamDatang.seconds : 0;
+        if(tB!==tA) return tB - tA;
+        const pA = a.jamPulang ? a.jamPulang.seconds : 0;
+        const pB = b.jamPulang ? b.jamPulang.seconds : 0;
+        return pB - pA;
+    });
+
+    data.forEach((siswa,index)=>{
         const jamDatang = siswa.jamDatang ? new Date(siswa.jamDatang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
         const jamPulang = siswa.jamPulang ? new Date(siswa.jamPulang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
         const row = document.createElement("tr");
-        row.innerHTML = `<td>${siswa.nis}</td><td>${siswa.nama}</td><td>${siswa.kelas}</td><td>${jamDatang}</td><td>${jamPulang}</td><td>${siswa.status}</td><td>${siswa.keterangan}</td>`;
+        row.innerHTML = `<td>${index+1}</td><td>${siswa.nis}</td><td>${siswa.nama}</td><td>${siswa.kelas}</td><td>${jamDatang}</td><td>${jamPulang}</td><td>${siswa.status}</td><td>${siswa.keterangan}</td>`;
         absensiBody.appendChild(row);
     });
 }
@@ -155,26 +166,31 @@ function updateTable(data){
 function applyFilter(kelas=null, guruNip=null){
     let data = allSiswa;
 
-    if(kelas) { filterKelas.value=kelas; data = data.filter(s=>s.kelas===kelas); }
+    if(kelas) filterKelas.value=kelas;
     else kelas = filterKelas.value;
 
-    if(guruNip) { filterGuru.value=guruNip; }
+    if(guruNip) filterGuru.value=guruNip;
     else guruNip = filterGuru.value;
 
-    if(guruNip){
+    // Logika filter
+    if(kelas && guruNip){
+        // Kedua filter
         const guru = allGuru.find(g=>g.nip===guruNip);
-        if(guru && Array.isArray(guru.daftarNIS)){
-            data = data.filter(s=>guru.daftarNIS.includes(s.nis));
-        } else {
-            data = [];
-        }
+        data = data.filter(s=>s.kelas===kelas && guru?.daftarNIS?.includes(s.nis));
+    } else if(kelas){
+        // Hanya kelas
+        data = data.filter(s=>s.kelas===kelas);
+    } else if(guruNip){
+        // Hanya guru
+        const guru = allGuru.find(g=>g.nip===guruNip);
+        data = data.filter(s=>guru?.daftarNIS?.includes(s.nis));
     }
 
     updateTable(data);
     return data;
 }
 
-// Rekap dan klik filter
+// Rekap
 function updateRekap(data){
     rekapBody.innerHTML="";
     const total = data.length;
@@ -182,25 +198,21 @@ function updateRekap(data){
     const terlambat = data.filter(s=>s.keterangan==="Terlambat").length;
     const perKelas = {};
     const perGuru = {};
-
     data.forEach(s=>{
         perKelas[s.kelas] = (perKelas[s.kelas]||0)+1;
         const guruObj = allGuru.find(g=>g.daftarNIS && g.daftarNIS.includes(s.nis));
         const guru = guruObj ? guruObj.nama : "Tidak ada";
         perGuru[guru] = (perGuru[guru]||0)+1;
     });
-
-    const addRow = (ket, jumlah, filter=null)=>{ 
-        const r = document.createElement("tr"); 
-        r.innerHTML=`<td>${ket}</td><td>${jumlah}</td>`; 
+    const addRow = (ket,jumlah,filter=null)=>{
+        const r = document.createElement("tr");
+        r.innerHTML=`<td>${ket}</td><td>${jumlah}</td>`;
         if(filter) r.onclick = ()=>applyFilter(filter.kelas, filter.guruNip);
-        rekapBody.appendChild(r); 
+        rekapBody.appendChild(r);
     }
-
     addRow("Total Siswa", total);
     addRow("Hadir", hadir);
     addRow("Terlambat", terlambat);
-
     Object.keys(perKelas).forEach(k=>addRow("Kelas " + k, perKelas[k], {kelas:k}));
     Object.keys(perGuru).forEach(g=>{
         const guruObj = allGuru.find(gr=>gr.nama===g);
@@ -213,12 +225,7 @@ function updateRekap(data){
 function listenAbsensi(today){
     db.collection("absensi").doc(today).onSnapshot(doc=>{
         const data = doc.data() || {};
-        const siswaArr = Object.values(data).sort((a,b)=>{
-            const tA = a.jamDatang ? a.jamDatang.seconds : 0;
-            const tB = b.jamDatang ? b.jamDatang.seconds : 0;
-            return tB - tA;
-        });
-        allSiswa = siswaArr;
+        allSiswa = Object.values(data);
         applyFilter();
     });
 }
