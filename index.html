@@ -6,78 +6,54 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 <style>
-body {
-  font-family: Arial, sans-serif;
-  margin: 20px;
-  background: #f8f9fa;
-}
-h2 {
-  margin-top: 30px;
-  color: #333;
-}
-select, button {
-  padding: 8px;
-  margin: 5px;
-  font-size: 14px;
-}
-table {
-  border-collapse: collapse;
-  width: 100%;
-  margin-top: 15px;
-  background: white;
-}
-th, td {
-  border: 1px solid #ccc;
-  padding: 6px 10px;
-  text-align: center;
-}
-th {
-  background: #f1f1f1;
-}
-.highlight {
-  background-color: #ffeeba !important;
+body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f4f4f4; }
+header { background:#007bff; display:flex; align-items:center; justify-content:center; padding:15px 20px; color:white; gap:15px; flex-direction:column; text-align:center; }
+header img { width:80px; height:80px; object-fit:contain; }
+header h1 { margin:5px 0 0 0; font-size:26px; }
+header h3 { margin:0; font-size:16px; font-weight:normal; }
+#container { display:flex; gap:20px; padding:20px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+#absensi-wrapper { flex:1 1 700px; background:white; border-radius:10px; overflow-y:auto; max-height:480px; border:2px solid #007bff; }
+#absensi-table { width:100%; border-collapse:collapse; }
+#absensi-table th, #absensi-table td { border:1px solid #ccc; padding:8px; }
+#absensi-table th { background-color:#007bff; color:white; position:sticky; top:0; z-index:1; text-align:center; }
+#absensi-table td { text-align:left; }
+#absensi-table td:nth-child(1), #absensi-table td:nth-child(3),
+#absensi-table td:nth-child(4), #absensi-table td:nth-child(5),
+#absensi-table td:nth-child(6), #absensi-table td:nth-child(7) { text-align:center; }
+#absensi-table td:nth-child(2) { text-align:left; font-weight:bold; }
+/* Responsif */
+@media(max-width:1000px){
+    #container { flex-direction:column; align-items:center; }
+    #absensi-wrapper { width:90%; max-width:800px; }
 }
 </style>
 </head>
 <body>
 
-<h2>Filter Absensi</h2>
-<select id="filterKelas">
-  <option value="">-- Semua Kelas --</option>
-</select>
-<select id="filterGuru">
-  <option value="">-- Semua Guru --</option>
-</select>
-<button id="btnAll">Tampilkan Semua</button>
-<button id="btnRekap">Tampilkan Rekap</button>
+<header>
+    <img src="logo.png" alt="Logo SMPN 20">
+    <h1>ABSENSI SISWA</h1>
+    <h3>SMPN 20 Konawe Selatan</h3>
+</header>
 
-<h2>Data Absensi Hari Ini</h2>
-<table>
-  <thead>
-    <tr>
-      <th>No</th>
-      <th>NIS</th>
-      <th>Nama</th>
-      <th>Kelas</th>
-      <th>Jam Datang</th>
-      <th>Jam Pulang</th>
-      <th>Status</th>
-      <th>Keterangan</th>
-    </tr>
-  </thead>
-  <tbody id="absensi-body"></tbody>
-</table>
-
-<h2>Rekap Absensi</h2>
-<table>
-  <thead>
-    <tr>
-      <th>Keterangan</th>
-      <th>Jumlah</th>
-    </tr>
-  </thead>
-  <tbody id="rekap-body"></tbody>
-</table>
+<div id="container">
+    <div id="absensi-wrapper">
+        <table id="absensi-table">
+            <thead>
+                <tr>
+                    <th>NIS</th>
+                    <th>Nama</th>
+                    <th>Kelas</th>
+                    <th>Jam Datang</th>
+                    <th>Jam Pulang</th>
+                    <th>Status</th>
+                    <th>Keterangan</th>
+                </tr>
+            </thead>
+            <tbody id="absensi-body"></tbody>
+        </table>
+    </div>
+</div>
 
 <script>
 // Firebase
@@ -94,166 +70,38 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 const absensiBody = document.getElementById("absensi-body");
-const rekapBody = document.getElementById("rekap-body");
-const filterKelas = document.getElementById("filterKelas");
-const filterGuru = document.getElementById("filterGuru");
 
-let allSiswa = [];
-let allGuru = [];
-let absensiHariIni = {};
-
-// Hari ini
-function getToday() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+function getToday(){
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth()+1).padStart(2,'0');
+    const dd = String(now.getDate()).padStart(2,'0');
+    return `${yyyy}-${mm}-${dd}`;
 }
 
-// Load guru wali
-db.collection("guru_wali").get().then(snapshot=>{
-  snapshot.forEach(doc=>{
-    const data = doc.data();
-    allGuru.push({
-      nama: data.nama,
-      nip: doc.id, // pakai id dokumen sebagai nip
-      daftarNIS: (data.daftar_nis || []).map(nis => String(nis))
+// Update tabel realtime (siswa absen terakhir di atas)
+function updateAbsensiTableRealtime(today){
+    db.collection("absensi").doc(today).onSnapshot(doc=>{
+        const data = doc.data() || {};
+        const siswaArr = Object.values(data).sort((a,b)=>{
+            const tA = a.jamPulang ? a.jamPulang.seconds : (a.jamDatang ? a.jamDatang.seconds : 0);
+            const tB = b.jamPulang ? b.jamPulang.seconds : (b.jamDatang ? b.jamDatang.seconds : 0);
+            return tB - tA; // descending, absen terakhir di atas
+        });
+
+        absensiBody.innerHTML="";
+        siswaArr.forEach(siswa=>{
+            const jamDatang = siswa.jamDatang ? new Date(siswa.jamDatang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
+            const jamPulang = siswa.jamPulang ? new Date(siswa.jamPulang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
+            const row = document.createElement("tr");
+            row.innerHTML = `<td>${siswa.nis}</td><td>${siswa.nama}</td><td>${siswa.kelas}</td><td>${jamDatang}</td><td>${jamPulang}</td><td>${siswa.status}</td><td>${siswa.keterangan}</td>`;
+            absensiBody.appendChild(row);
+        });
     });
-    const opt = document.createElement("option");
-    opt.value = doc.id;
-    opt.textContent = data.nama;
-    filterGuru.appendChild(opt);
-  });
-});
-
-// Load siswa
-db.collection("siswa").get().then(snapshot=>{
-  const kelasSet = new Set();
-  snapshot.forEach(doc=>{
-    const s = doc.data();
-    s.nis = String(s.nis);
-    allSiswa.push(s);
-    kelasSet.add(s.kelas);
-  });
-  kelasSet.forEach(k=>{
-    const opt = document.createElement("option");
-    opt.value=k; opt.textContent=k;
-    filterKelas.appendChild(opt);
-  });
-  updateTable(allSiswa); // tampil awal
-});
-
-// Update tabel absensi
-function updateTable(data, highlightNIS=[]){
-  absensiBody.innerHTML="";
-  data.forEach((s,index)=>{
-    const absen = absensiHariIni[s.nis] || {};
-    const jamDatang = absen.jamDatang ? new Date(absen.jamDatang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
-    const jamPulang = absen.jamPulang ? new Date(absen.jamPulang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
-    const status = absen.status || '';
-    const ket = absen.keterangan || '';
-
-    const row = document.createElement("tr");
-    row.innerHTML = `<td>${index+1}</td><td>${s.nis}</td><td>${s.nama}</td><td>${s.kelas}</td><td>${jamDatang}</td><td>${jamPulang}</td><td>${status}</td><td>${ket}</td>`;
-    if(highlightNIS.includes(String(s.nis))){
-      row.classList.add("highlight");
-    }
-    absensiBody.appendChild(row);
-  });
 }
 
-// Filter kelas & guru
-function applyFilter(){
-  const selectedKelas = filterKelas.value;
-  const selectedGuru = filterGuru.value;
-  let data = allSiswa;
-
-  if(selectedKelas) {
-    data = data.filter(s => s.kelas === selectedKelas);
-  }
-
-  if(selectedGuru) {
-    const guru = allGuru.find(g => String(g.nip) === String(selectedGuru));
-    if (guru && guru.daftarNIS && guru.daftarNIS.length > 0) {
-      data = data.filter(s => guru.daftarNIS.includes(String(s.nis)));
-    } else {
-      data = [];
-    }
-  }
-
-  updateTable(data);
-  return data;
-}
-
-// Rekap
-function updateRekap(){
-  const data = applyFilter();
-  rekapBody.innerHTML="";
-
-  const total = data.length;
-  const hadir = data.filter(s=> (absensiHariIni[s.nis]?.status==="Hadir")).map(s=>s.nis);
-  const izin = data.filter(s=> (absensiHariIni[s.nis]?.status==="Izin")).map(s=>s.nis);
-  const sakit = data.filter(s=> (absensiHariIni[s.nis]?.status==="Sakit")).map(s=>s.nis);
-  const ta = data.filter(s=> (absensiHariIni[s.nis]?.status==="TA")).map(s=>s.nis);
-  const tk = data.filter(s=> (absensiHariIni[s.nis]?.status==="TK")).map(s=>s.nis);
-
-  const perKelas = {};
-  const perGuru = {};
-  data.forEach(s=>{
-    perKelas[s.kelas] = (perKelas[s.kelas]||0)+1;
-    const guruObj = allGuru.find(g=>g.daftarNIS?.includes(String(s.nis)));
-    const guru = guruObj ? guruObj.nama : "Tidak ada";
-    perGuru[guru] = (perGuru[guru]||0)+1;
-  });
-
-  const addRow = (ket,jumlah,highlightNIS=[],kelas=null,guruNip=null)=>{
-    const r = document.createElement("tr");
-    r.innerHTML = `<td>${ket}</td><td>${jumlah}</td>`;
-    if(jumlah>0 || kelas || guruNip){
-      r.style.cursor="pointer";
-      r.onclick = ()=>{
-        if(kelas) filterKelas.value = kelas; else filterKelas.value = "";
-        if(guruNip) filterGuru.value = guruNip; else filterGuru.value = "";
-        const filtered = applyFilter();
-        const nisList = highlightNIS.length>0 ? highlightNIS : filtered.map(s=>String(s.nis));
-        updateTable(filtered, nisList);
-      };
-    }
-    rekapBody.appendChild(r);
-  };
-
-  // Total siswa
-  addRow("Total Siswa", total);
-  addRow("Hadir", hadir.length, hadir);
-  addRow("Izin", izin.length, izin);
-  addRow("Sakit", sakit.length, sakit);
-  addRow("Tanpa Keterangan", ta.length, ta);
-  addRow("Terlambat", tk.length, tk);
-
-  // Per kelas
-  Object.keys(perKelas).sort().forEach(k=>addRow("Kelas "+k, perKelas[k], [], k));
-
-  // Per guru
-  Object.keys(perGuru).sort().forEach(g=>{
-    const guruObj = allGuru.find(gr=>gr.nama===g);
-    const guruNip = guruObj ? guruObj.nip : null;
-    addRow("Guru "+g, perGuru[g], [], null, guruNip);
-  });
-}
-
-// Event listeners
-document.getElementById("btnAll").addEventListener("click", ()=>{
-  filterKelas.value=""; filterGuru.value="";
-  updateTable(allSiswa);
-});
-filterKelas.addEventListener("change", applyFilter);
-filterGuru.addEventListener("change", applyFilter);
-document.getElementById("btnRekap").addEventListener("click", updateRekap);
-
-// Realtime absensi
-db.collection("absensi").doc(getToday()).onSnapshot(doc=>{
-  absensiHariIni = doc.data() || {};
-  applyFilter();
-});
+// Inisialisasi
+updateAbsensiTableRealtime(getToday());
 </script>
-
 </body>
 </html>
