@@ -122,7 +122,7 @@ db.collection("guru_wali").get().then(snapshot=>{
         allGuru.push({
             nama: data.nama,
             nip: data.nip,
-            daftarNIS: data.daftar_nis || []   // <-- normalisasi agar filter guru jalan
+            daftarNIS: (data.daftar_nis||[]).map(nis=>String(nis))
         });
         const opt = document.createElement("option");
         opt.value = data.nip;
@@ -131,11 +131,12 @@ db.collection("guru_wali").get().then(snapshot=>{
     });
 });
 
-// Load semua siswa
+// Load siswa
 db.collection("siswa").get().then(snapshot=>{
     const kelasSet = new Set();
     snapshot.forEach(doc=>{
         const s = doc.data();
+        s.nis = String(s.nis); // PAKSA KE STRING
         allSiswa.push(s);
         kelasSet.add(s.kelas);
     });
@@ -164,7 +165,7 @@ function updateTable(data){
     });
 }
 
-// Filter kelas & guru (logika sama seperti APK)
+// Filter kelas & guru
 function applyFilter(){
     const selectedKelas = filterKelas.value;
     const selectedGuru = filterGuru.value;
@@ -174,7 +175,7 @@ function applyFilter(){
     if(selectedKelas) data = data.filter(s=>s.kelas===selectedKelas);
     if(selectedGuru){
         const guru = allGuru.find(g=>String(g.nip)===String(selectedGuru));
-        data = data.filter(s=>guru?.daftarNIS?.includes(s.nis));
+        data = data.filter(s=>guru?.daftarNIS?.includes(String(s.nis)));
     }
 
     updateTable(data);
@@ -190,7 +191,7 @@ function updateRekap(data){
     const perGuru = {};
     data.forEach(s=>{
         perKelas[s.kelas]=(perKelas[s.kelas]||0)+1;
-        const guruObj = allGuru.find(g=>g.daftarNIS?.includes(s.nis));
+        const guruObj = allGuru.find(g=>g.daftarNIS?.includes(String(s.nis)));
         const guru = guruObj ? guruObj.nama : "Tidak ada";
         perGuru[guru]=(perGuru[guru]||0)+1;
     });
@@ -222,7 +223,10 @@ document.getElementById("btnRekap").addEventListener("click", ()=>updateRekap(al
 // Realtime absensi
 db.collection("absensi").doc(getToday()).onSnapshot(doc=>{
     const data = doc.data() || {};
-    allSiswa = Object.values(data);
+    allSiswa = Object.values(data).map(s=>{
+        s.nis = String(s.nis); // PAKSA KE STRING
+        return s;
+    });
     applyFilter();
 });
 </script>
