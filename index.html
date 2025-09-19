@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Absensi Siswa</title>
+<title>Absensi Siswa Manual</title>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 <style>
@@ -11,8 +11,8 @@ header { background:#007bff; display:flex; align-items:center; justify-content:c
 header img { width:80px; height:80px; object-fit:contain; }
 header h1 { margin:5px 0 0 0; font-size:26px; }
 header h3 { margin:0; font-size:16px; font-weight:normal; }
-#container { display:flex; gap:20px; padding:20px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
-#absensi-wrapper { flex:1 1 700px; background:white; border-radius:10px; overflow-y:auto; max-height:480px; border:2px solid #007bff; }
+#container { display:flex; gap:20px; padding:20px; flex-direction:column; align-items:center; }
+#absensi-wrapper { flex:1 1 700px; background:white; border-radius:10px; overflow-y:auto; max-height:480px; border:2px solid #007bff; width:90%; max-width:800px; }
 #absensi-table { width:100%; border-collapse:collapse; }
 #absensi-table th, #absensi-table td { border:1px solid #ccc; padding:8px; }
 #absensi-table th { background-color:#007bff; color:white; position:sticky; top:0; z-index:1; text-align:center; }
@@ -21,11 +21,10 @@ header h3 { margin:0; font-size:16px; font-weight:normal; }
 #absensi-table td:nth-child(4), #absensi-table td:nth-child(5),
 #absensi-table td:nth-child(6), #absensi-table td:nth-child(7) { text-align:center; }
 #absensi-table td:nth-child(2) { text-align:left; font-weight:bold; }
-/* Responsif */
-@media(max-width:1000px){
-    #container { flex-direction:column; align-items:center; }
-    #absensi-wrapper { width:90%; max-width:800px; }
-}
+.toast { padding:10px 20px; background-color:#333; color:white; position:fixed; bottom:20px; left:50%; transform:translateX(-50%); border-radius:5px; opacity:0.9; z-index:9999; }
+input[type=text]{ padding:8px; width:200px; border-radius:5px; border:1px solid #ccc; }
+button { padding:8px 12px; border:none; border-radius:5px; background:#007bff; color:white; cursor:pointer; }
+button:hover{ background:#0056b3; }
 </style>
 </head>
 <body>
@@ -37,6 +36,11 @@ header h3 { margin:0; font-size:16px; font-weight:normal; }
 </header>
 
 <div id="container">
+    <div>
+        <input type="text" id="nis-input" placeholder="Masukkan NIS siswa">
+        <button onclick="submitAbsen()">Absen</button>
+    </div>
+
     <div id="absensi-wrapper">
         <table id="absensi-table">
             <thead>
@@ -55,6 +59,8 @@ header h3 { margin:0; font-size:16px; font-weight:normal; }
     </div>
 </div>
 
+<audio id="beep-sound" src="https://www.soundjay.com/button/beep-07.wav" preload="auto"></audio>
+
 <script>
 // Firebase
 const firebaseConfig = {
@@ -69,7 +75,17 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+let jamDatangMulai=6, jamDatangAkhir=9, jamPulangMulai=11, jamPulangAkhir=13, toleransiMenit=3;
+let tanggalLiburList=[], sudahPrefill=false;
 const absensiBody = document.getElementById("absensi-body");
+const beep = document.getElementById("beep-sound");
+
+function showToast(msg){
+    const toast = document.createElement("div");
+    toast.className="toast"; toast.innerText=msg;
+    document.body.appendChild(toast);
+    setTimeout(()=>toast.remove(),3000);
+}
 
 function getToday(){
     const now = new Date();
@@ -79,14 +95,54 @@ function getToday(){
     return `${yyyy}-${mm}-${dd}`;
 }
 
-// Update tabel realtime (siswa absen terakhir di atas)
+function isDalamRentang(jamSekarang, menitSekarang, jamMulai, jamAkhir){
+    const totalMenit = jamSekarang*60 + menitSekarang;
+    return totalMenit >= jamMulai*60 && totalMenit <= jamAkhir*60;
+}
+
+function ambilPengaturanJamSekolah(onDone){
+    db.collection("pengaturan").doc("jam_sekolah").get().then(doc=>{
+        if(doc.exists){
+            jamDatangMulai = parseInt(doc.get("jamDatangMulai") ?? 6);
+            jamDatangAkhir = parseInt(doc.get("jamDatangAkhir") ?? 9);
+            jamPulangMulai = parseInt(doc.get("jamPulangMulai") ?? 11);
+            jamPulangAkhir = parseInt(doc.get("jamPulangAkhir") ?? 13);
+            tanggalLiburList = doc.get("tanggal_libur") ?? [];
+        }
+        onDone();
+    }).catch(err=>{ console.error(err); showToast("Gagal ambil jam sekolah"); onDone(); });
+}
+
+function prefillAbsensiHariIni(onDone){
+    const today = getToday();
+    const absensiRef = db.collection("absensi").doc(today);
+    absensiRef.get().then(doc=>{
+        db.collection("siswa").get().then(snapshot=>{
+            const newData = {};
+            const existingData = doc.exists ? doc.data() : {};
+            snapshot.forEach(siswa=>{
+                const nis = siswa.get("nis");
+                if(!existingData[nis]){
+                    newData[nis] = {
+                        status:"TA", jamDatang:null, jamPulang:null, keterangan:"",
+                        nis:nis, nama:siswa.get("nama"), kelas:siswa.get("kelas")
+                    };
+                }
+            });
+            if(Object.keys(newData).length>0){
+                absensiRef.set(newData,{merge:true}).then(()=>{ sudahPrefill=true; onDone(); });
+            } else { sudahPrefill=true; onDone(); }
+        });
+    });
+}
+
 function updateAbsensiTableRealtime(today){
     db.collection("absensi").doc(today).onSnapshot(doc=>{
         const data = doc.data() || {};
         const siswaArr = Object.values(data).sort((a,b)=>{
             const tA = a.jamPulang ? a.jamPulang.seconds : (a.jamDatang ? a.jamDatang.seconds : 0);
             const tB = b.jamPulang ? b.jamPulang.seconds : (b.jamDatang ? b.jamDatang.seconds : 0);
-            return tB - tA; // descending, absen terakhir di atas
+            return tB - tA;
         });
 
         absensiBody.innerHTML="";
@@ -100,8 +156,64 @@ function updateAbsensiTableRealtime(today){
     });
 }
 
+function updateStatusAbsensi(nis){
+    const today = getToday();
+    const now = new Date();
+    const jamSekarang = now.getHours();
+    const menitSekarang = now.getMinutes();
+
+    if(tanggalLiburList.includes(today)){ showToast("Hari ini libur"); return; }
+
+    const absensiRef = db.collection("absensi").doc(today);
+    absensiRef.get().then(doc=>{
+        if(!doc.exists || !doc.data()[nis]){ showToast("Data absensi tidak ditemukan"); return; }
+        const siswa = doc.data()[nis];
+        const jamDatang = siswa.jamDatang;
+        const jamPulang = siswa.jamPulang;
+        const ket = siswa.keterangan || "";
+
+        if(["IZIN","SAKIT"].includes(ket.toUpperCase())){
+            showToast(`Siswa ${nis} (${ket}) hari ini`); beep.play(); return;
+        }
+
+        if(!jamDatang){
+            if(isDalamRentang(jamSekarang, menitSekarang,jamDatangMulai,jamDatangAkhir+toleransiMenit)){
+                const keterangan = jamSekarang>jamDatangAkhir ? "Terlambat" : "Absen datang berhasil";
+                absensiRef.update({
+                    [`${nis}.jamDatang`]: firebase.firestore.FieldValue.serverTimestamp(),
+                    [`${nis}.status`]: "TK",
+                    [`${nis}.keterangan`]: keterangan
+                }).then(()=>{ showToast(keterangan); beep.play(); });
+            } else showToast("Belum bisa absen datang");
+        } else if(!jamPulang){
+            if(isDalamRentang(jamSekarang, menitSekarang,jamPulangMulai,jamPulangAkhir+toleransiMenit)){
+                absensiRef.update({
+                    [`${nis}.jamPulang`]: firebase.firestore.FieldValue.serverTimestamp(),
+                    [`${nis}.status`]: "Hadir",
+                    [`${nis}.keterangan`]: "Absen pulang berhasil"
+                }).then(()=>{ showToast("Absen pulang berhasil"); beep.play(); });
+            } else showToast("Belum bisa absen pulang");
+        } else { showToast("Sudah lengkap absen hari ini"); beep.play(); }
+    }).catch(err=>{ console.error(err); showToast("Gagal update absensi"); });
+}
+
+// Tombol submit manual
+function submitAbsen(){
+    const nisInput = document.getElementById("nis-input");
+    const nis = nisInput.value.trim();
+    if(!nis) { showToast("Masukkan NIS"); return; }
+    updateStatusAbsensi(nis);
+    nisInput.value="";
+}
+
 // Inisialisasi
-updateAbsensiTableRealtime(getToday());
+ambilPengaturanJamSekolah(()=>{
+    prefillAbsensiHariIni(()=>{
+        const today = getToday();
+        updateAbsensiTableRealtime(today);
+    });
+});
 </script>
+
 </body>
 </html>
