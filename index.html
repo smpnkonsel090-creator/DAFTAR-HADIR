@@ -8,12 +8,20 @@
 <style>
 body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f4f4f4; display:flex; flex-direction:column; height:100vh; }
 header { background:#007bff; color:white; padding:15px; text-align:center; }
+#main { display:flex; flex:1; overflow:hidden; }
+#sidebar { width:250px; background:#fff; border-right:2px solid #007bff; padding:15px; box-sizing:border-box; overflow-y:auto; }
+#sidebar button, #sidebar select { width:100%; margin-bottom:10px; padding:10px; font-size:14px; border-radius:5px; border:1px solid #007bff; background:#007bff; color:white; cursor:pointer; }
+#sidebar select { background:white; color:black; border:1px solid #007bff; }
 #content { flex:1; padding:20px; overflow:auto; }
 #absensi-wrapper { background:white; border-radius:10px; overflow-y:auto; border:2px solid #007bff; margin-bottom:20px; }
 #absensi-table { width:100%; border-collapse:collapse; }
 #absensi-table th, #absensi-table td { border:1px solid #ccc; padding:8px; text-align:center; }
 .highlight { background-color:#ffff99 !important; }
 #tvKosong { display:none; text-align:center; font-weight:bold; color:red; margin-top:20px; }
+@media(max-width:1000px){
+    #main { flex-direction:column; }
+    #sidebar { width:100%; border-right:none; border-bottom:2px solid #007bff; }
+}
 </style>
 </head>
 <body>
@@ -23,25 +31,37 @@ header { background:#007bff; color:white; padding:15px; text-align:center; }
     <h3>SMPN 20 Konawe Selatan</h3>
 </header>
 
-<div id="content">
-    <div id="absensi-wrapper">
-        <table id="absensi-table">
-            <thead>
-                <tr>
-                    <th>No</th>
-                    <th>NIS</th>
-                    <th>Nama</th>
-                    <th>Kelas</th>
-                    <th>Jam Datang</th>
-                    <th>Jam Pulang</th>
-                    <th>Status</th>
-                    <th>Keterangan</th>
-                </tr>
-            </thead>
-            <tbody id="absensi-body"></tbody>
-        </table>
+<div id="main">
+    <div id="sidebar">
+        <button id="btnAll">Semua Siswa</button>
+        <select id="filterKelas">
+            <option value="">-- Filter Per Kelas --</option>
+        </select>
+        <select id="filterGuru">
+            <option value="">-- Filter Per Guru --</option>
+        </select>
     </div>
-    <p id="tvKosong">Kosong</p>
+
+    <div id="content">
+        <div id="absensi-wrapper">
+            <table id="absensi-table">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>NIS</th>
+                        <th>Nama</th>
+                        <th>Kelas</th>
+                        <th>Jam Datang</th>
+                        <th>Jam Pulang</th>
+                        <th>Status</th>
+                        <th>Keterangan</th>
+                    </tr>
+                </thead>
+                <tbody id="absensi-body"></tbody>
+            </table>
+        </div>
+        <p id="tvKosong">Kosong</p>
+    </div>
 </div>
 
 <script>
@@ -59,9 +79,12 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 const absensiBody = document.getElementById("absensi-body");
+const filterKelas = document.getElementById("filterKelas");
+const filterGuru = document.getElementById("filterGuru");
 const tvKosong = document.getElementById("tvKosong");
 
 let allSiswa = [];
+let allGuru = [];
 
 // Hari ini
 function getToday() {
@@ -69,26 +92,92 @@ function getToday() {
     return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 }
 
-// Update tabel
-function updateTable(data){
-    absensiBody.innerHTML="";
-    if(data.length === 0){
-        tvKosong.style.display = "block";
-        document.getElementById("absensi-wrapper").style.display = "none";
-        return;
-    } else {
-        tvKosong.style.display = "none";
-        document.getElementById("absensi-wrapper").style.display = "block";
-    }
+// Load guru
+db.collection("guru_wali").get().then(snapshot=>{
+    snapshot.forEach(doc=>{
+        const data = doc.data();
+        allGuru.push({
+            nama: data.nama,
+            nip: data.nip,
+            daftarNIS: (data.daftar_nis||[]).map(nis=>String(nis))
+        });
+        const opt = document.createElement("option");
+        opt.value = data.nip;
+        opt.textContent = data.nama;
+        filterGuru.appendChild(opt);
+    });
+});
 
+// Load siswa
+db.collection("siswa").get().then(snapshot=>{
+    const kelasSet = new Set();
+    snapshot.forEach(doc=>{
+        const s = doc.data();
+        s.nis = String(s.nis); 
+        allSiswa.push(s);
+        kelasSet.add(s.kelas);
+    });
+    kelasSet.forEach(k=>{
+        const opt = document.createElement("option");
+        opt.value = k;
+        opt.textContent = k;
+        filterKelas.appendChild(opt);
+    });
+    updateTable(allSiswa); // tampil awal semua siswa
+});
+
+// Update tabel
+function updateTable(data, highlightNIS=[]){
+    absensiBody.innerHTML="";
     data.forEach((s,index)=>{
         const jamDatang = s.jamDatang ? new Date(s.jamDatang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
         const jamPulang = s.jamPulang ? new Date(s.jamPulang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
         const row = document.createElement("tr");
         row.innerHTML = `<td>${index+1}</td><td>${s.nis}</td><td>${s.nama}</td><td>${s.kelas}</td><td>${jamDatang}</td><td>${jamPulang}</td><td>${s.status}</td><td>${s.keterangan||''}</td>`;
+        
+        if(highlightNIS.includes(String(s.nis))){
+            row.classList.add("highlight");
+        }
         absensiBody.appendChild(row);
     });
 }
+
+// Apply filter kelas & guru
+function applyFilter() {
+    const selectedKelas = filterKelas.value;
+    const selectedGuru = filterGuru.value;
+
+    let data = allSiswa;
+
+    if(selectedKelas) data = data.filter(s=>s.kelas === selectedKelas);
+    if(selectedGuru){
+        const guru = allGuru.find(g=>String(g.nip)===String(selectedGuru));
+        data = data.filter(s=>guru?.daftarNIS.includes(String(s.nis)));
+    }
+
+    if(data.length === 0){
+        tvKosong.style.display = "block";
+        document.getElementById("absensi-wrapper").style.display = "none";
+    } else {
+        tvKosong.style.display = "none";
+        document.getElementById("absensi-wrapper").style.display = "block";
+    }
+
+    updateTable(data);
+    return data;
+}
+
+// Event listeners
+filterKelas.addEventListener("change", applyFilter);
+filterGuru.addEventListener("change", applyFilter);
+
+document.getElementById("btnAll").addEventListener("click", ()=>{
+    filterKelas.value="";
+    filterGuru.value="";
+    tvKosong.style.display = "none";
+    document.getElementById("absensi-wrapper").style.display = "block";
+    updateTable(allSiswa);
+});
 
 // Realtime absensi hari ini
 db.collection("absensi").doc(getToday()).onSnapshot(doc=>{
@@ -97,7 +186,7 @@ db.collection("absensi").doc(getToday()).onSnapshot(doc=>{
         s.nis = String(s.nis);
         return s;
     });
-    updateTable(allSiswa);
+    applyFilter();
 });
 </script>
 </body>
