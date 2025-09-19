@@ -1,5 +1,104 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Absensi Siswa</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+<style>
+body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f4f4f4; display:flex; flex-direction:column; height:100vh; }
+header { background:#007bff; display:flex; align-items:center; justify-content:center; padding:15px 20px; color:white; gap:15px; flex-direction:column; text-align:center; flex-shrink:0; }
+header img { width:80px; height:80px; object-fit:contain; }
+header h1 { margin:5px 0 0 0; font-size:26px; }
+header h3 { margin:0; font-size:16px; font-weight:normal; }
+
+#main { display:flex; flex:1; overflow:hidden; }
+#sidebar { width:250px; background:#fff; border-right:2px solid #007bff; padding:15px; box-sizing:border-box; overflow-y:auto; }
+#sidebar button, #sidebar select { width:100%; margin-bottom:10px; padding:10px; font-size:14px; border-radius:5px; border:1px solid #007bff; background:#007bff; color:white; cursor:pointer; }
+#sidebar select { background:white; color:black; border:1px solid #007bff; }
+#content { flex:1; padding:20px; overflow:auto; }
+
+#absensi-wrapper { background:white; border-radius:10px; overflow-y:auto; max-height:50%; border:2px solid #007bff; margin-bottom:20px; }
+#absensi-table, #rekap-table { width:100%; border-collapse:collapse; margin-bottom:20px; }
+#absensi-table th, #absensi-table td, #rekap-table th, #rekap-table td { border:1px solid #ccc; padding:8px; }
+#absensi-table th, #rekap-table th { background-color:#007bff; color:white; position:sticky; top:0; z-index:1; text-align:center; }
+#absensi-table td, #rekap-table td { text-align:left; }
+#absensi-table td:nth-child(1) { text-align:center; } /* Nomor urut */
+#absensi-table td:nth-child(2) { text-align:center; } /* NIS */
+#absensi-table td:nth-child(4) { text-align:center; } /* Kelas */
+#absensi-table td:nth-child(5), #absensi-table td:nth-child(6) { text-align:center; } /* Jam datang/pulang */
+#absensi-table td:nth-child(7), #absensi-table td:nth-child(8) { text-align:center; } /* Status/Keterangan */
+#rekap-table td:nth-child(1), #rekap-table td { cursor:pointer; }
+/* Responsif */
+@media(max-width:1000px){
+    #main { flex-direction:column; }
+    #sidebar { width:100%; border-right:none; border-bottom:2px solid #007bff; }
+    #absensi-wrapper { max-height:none; }
+}
+</style>
+</head>
+<body>
+
+<header>
+    <img src="logo.png" alt="Logo SMPN 20">
+    <h1>ABSENSI SISWA</h1>
+    <h3>SMPN 20 Konawe Selatan</h3>
+</header>
+
+<div id="main">
+    <div id="sidebar">
+        <button id="btnAll">Semua Siswa</button>
+        <select id="filterKelas">
+            <option value="">-- Filter Per Kelas --</option>
+        </select>
+        <select id="filterGuru">
+            <option value="">-- Filter Per Guru --</option>
+        </select>
+        <button id="btnRekap">Tampilkan Rekap</button>
+    </div>
+
+    <div id="content">
+        <div id="absensi-wrapper">
+            <table id="absensi-table">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>NIS</th>
+                        <th>Nama</th>
+                        <th>Kelas</th>
+                        <th>Jam Datang</th>
+                        <th>Jam Pulang</th>
+                        <th>Status</th>
+                        <th>Keterangan</th>
+                    </tr>
+                </thead>
+                <tbody id="absensi-body"></tbody>
+            </table>
+        </div>
+        <div id="rekap-wrapper">
+            <h3>Rekap Absensi (klik untuk filter)</h3>
+            <table id="rekap-table">
+                <thead>
+                    <tr><th>Keterangan</th><th>Jumlah</th></tr>
+                </thead>
+                <tbody id="rekap-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <script>
-// Firebase
+// Firebase Config
+const firebaseConfig = {
+  apiKey: "AIzaSyCAg9Kb4I3dp-fcCIp5RzQKY8mJ3sD4hPU",
+  authDomain: "absensi-smpn-20-konsel.firebaseapp.com",
+  projectId: "absensi-smpn-20-konsel",
+  storageBucket: "absensi-smpn-20-konsel.appspot.com",
+  messagingSenderId: "247838919432",
+  appId: "1:247838919432:web:4505c7d499fb5d716dfabd",
+  measurementId: "G-1TNJRBYFEV"
+};
+firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 const absensiBody = document.getElementById("absensi-body");
@@ -9,6 +108,8 @@ const filterGuru = document.getElementById("filterGuru");
 
 let allSiswa = [];
 let allGuru = [];
+
+// Tanggal hari ini
 let today = new Date();
 today = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
@@ -71,7 +172,7 @@ async function applyFilter(){
     }
 
     const siswaFiltered = allSiswa.filter(s=>finalNisSet.has(s.nis));
-    updateTable(siswaFiltered);
+    await updateTable(siswaFiltered);
     updateRekap(siswaFiltered);
     return siswaFiltered;
 }
@@ -132,7 +233,10 @@ document.getElementById("btnAll").addEventListener("click", ()=>{
 });
 filterKelas.addEventListener("change", applyFilter);
 filterGuru.addEventListener("change", applyFilter);
+document.getElementById("btnRekap").addEventListener("click", ()=>applyFilter());
 
-// Inisialisasi
+// Init
 applyFilter();
 </script>
+</body>
+</html>
