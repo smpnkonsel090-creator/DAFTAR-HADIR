@@ -25,9 +25,9 @@ header h3 { margin:0; font-size:16px; font-weight:normal; }
 #absensi-table td, #rekap-table td { text-align:left; }
 #absensi-table td:nth-child(1) { text-align:center; } /* Nomor urut */
 #absensi-table td:nth-child(2) { text-align:center; } /* NIS */
-#absensi-table td:nth-child(3) { text-align:left; font-weight:bold; } /* Nama */
+#absensi-table td:nth-child(3) { font-weight:bold; } /* Nama */
 #absensi-table td:nth-child(4), #absensi-table td:nth-child(5) { text-align:center; } /* Jam datang/pulang */
-#absensi-table td:nth-child(6), #absensi-table td:nth-child(7) { text-align:center; }
+#absensi-table td:nth-child(6), #absensi-table td:nth-child(7), #absensi-table td:nth-child(8) { text-align:center; }
 #rekap-table td:nth-child(1), #rekap-table td { cursor:pointer; }
 /* Responsif */
 @media(max-width:1000px){
@@ -143,16 +143,15 @@ db.collection("guru_wali").get().then(snapshot=>{
 // Update tabel absensi
 function updateTable(data){
     absensiBody.innerHTML="";
-    // Urutkan berdasarkan jamDatang, jika sama urutkan jamPulang
+    // Urutkan berdasarkan jamDatang, jika sama jamPulang
     data.sort((a,b)=>{
         const tA = a.jamDatang ? a.jamDatang.seconds : 0;
         const tB = b.jamDatang ? b.jamDatang.seconds : 0;
-        if(tB!==tA) return tB - tA;
+        if(tB!==tA) return tB-tA;
         const pA = a.jamPulang ? a.jamPulang.seconds : 0;
         const pB = b.jamPulang ? b.jamPulang.seconds : 0;
-        return pB - pA;
+        return pB-pA;
     });
-
     data.forEach((siswa,index)=>{
         const jamDatang = siswa.jamDatang ? new Date(siswa.jamDatang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
         const jamPulang = siswa.jamPulang ? new Date(siswa.jamPulang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
@@ -172,17 +171,14 @@ function applyFilter(kelas=null, guruNip=null){
     if(guruNip) filterGuru.value=guruNip;
     else guruNip = filterGuru.value;
 
-    // Logika filter
+    // Filter logika benar
     if(kelas && guruNip){
-        // Kedua filter
-        const guru = allGuru.find(g=>g.nip===guruNip);
+        const guru = allGuru.find(g=>String(g.nip)===String(guruNip));
         data = data.filter(s=>s.kelas===kelas && guru?.daftarNIS?.includes(s.nis));
     } else if(kelas){
-        // Hanya kelas
         data = data.filter(s=>s.kelas===kelas);
     } else if(guruNip){
-        // Hanya guru
-        const guru = allGuru.find(g=>g.nip===guruNip);
+        const guru = allGuru.find(g=>String(g.nip)===String(guruNip));
         data = data.filter(s=>guru?.daftarNIS?.includes(s.nis));
     }
 
@@ -200,7 +196,7 @@ function updateRekap(data){
     const perGuru = {};
     data.forEach(s=>{
         perKelas[s.kelas] = (perKelas[s.kelas]||0)+1;
-        const guruObj = allGuru.find(g=>g.daftarNIS && g.daftarNIS.includes(s.nis));
+        const guruObj = allGuru.find(g=>g.daftarNIS?.includes(s.nis));
         const guru = guruObj ? guruObj.nama : "Tidak ada";
         perGuru[guru] = (perGuru[guru]||0)+1;
     });
