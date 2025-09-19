@@ -7,26 +7,41 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 <style>
 body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f4f4f4; display:flex; flex-direction:column; height:100vh; }
-header { background:#007bff; color:white; padding:15px; text-align:center; }
+header { background:#007bff; display:flex; align-items:center; justify-content:center; padding:15px 20px; color:white; gap:15px; flex-direction:column; text-align:center; flex-shrink:0; }
+header img { width:80px; height:80px; object-fit:contain; }
+header h1 { margin:5px 0 0 0; font-size:26px; }
+header h3 { margin:0; font-size:16px; font-weight:normal; }
+
 #main { display:flex; flex:1; overflow:hidden; }
 #sidebar { width:250px; background:#fff; border-right:2px solid #007bff; padding:15px; box-sizing:border-box; overflow-y:auto; }
 #sidebar button, #sidebar select { width:100%; margin-bottom:10px; padding:10px; font-size:14px; border-radius:5px; border:1px solid #007bff; background:#007bff; color:white; cursor:pointer; }
 #sidebar select { background:white; color:black; border:1px solid #007bff; }
 #content { flex:1; padding:20px; overflow:auto; }
-#absensi-wrapper { background:white; border-radius:10px; overflow-y:auto; border:2px solid #007bff; margin-bottom:20px; }
-#absensi-table { width:100%; border-collapse:collapse; }
-#absensi-table th, #absensi-table td { border:1px solid #ccc; padding:8px; text-align:center; }
-.highlight { background-color:#ffff99 !important; }
-#tvKosong { display:none; text-align:center; font-weight:bold; color:red; margin-top:20px; }
+
+#absensi-wrapper { background:white; border-radius:10px; overflow-y:auto; max-height:50%; border:2px solid #007bff; margin-bottom:20px; }
+#absensi-table, #rekap-table { width:100%; border-collapse:collapse; margin-bottom:20px; }
+#absensi-table th, #absensi-table td, #rekap-table th, #rekap-table td { border:1px solid #ccc; padding:8px; }
+#absensi-table th, #rekap-table th { background-color:#007bff; color:white; position:sticky; top:0; z-index:1; text-align:center; }
+#absensi-table td, #rekap-table td { text-align:left; }
+#absensi-table td:nth-child(1) { text-align:center; }
+#absensi-table td:nth-child(2) { text-align:center; }
+#absensi-table td:nth-child(4), #absensi-table td:nth-child(5) { text-align:center; }
+#absensi-table td:nth-child(6), #absensi-table td:nth-child(7), #absensi-table td:nth-child(8) { text-align:center; }
+#rekap-table td:nth-child(1), #rekap-table td { cursor:pointer; }
+
+.highlight { background-color:#ffff99 !important; } /* warna highlight */
+
 @media(max-width:1000px){
     #main { flex-direction:column; }
     #sidebar { width:100%; border-right:none; border-bottom:2px solid #007bff; }
+    #absensi-wrapper { max-height:none; }
 }
 </style>
 </head>
 <body>
 
 <header>
+    <img src="logo.png" alt="Logo SMPN 20">
     <h1>ABSENSI SISWA</h1>
     <h3>SMPN 20 Konawe Selatan</h3>
 </header>
@@ -40,6 +55,7 @@ header { background:#007bff; color:white; padding:15px; text-align:center; }
         <select id="filterGuru">
             <option value="">-- Filter Per Guru --</option>
         </select>
+        <button id="btnRekap">Tampilkan Rekap</button>
     </div>
 
     <div id="content">
@@ -60,7 +76,15 @@ header { background:#007bff; color:white; padding:15px; text-align:center; }
                 <tbody id="absensi-body"></tbody>
             </table>
         </div>
-        <p id="tvKosong">Kosong</p>
+        <div id="rekap-wrapper">
+            <h3>Rekap Absensi (klik untuk filter & highlight)</h3>
+            <table id="rekap-table">
+                <thead>
+                    <tr><th>Keterangan</th><th>Jumlah</th></tr>
+                </thead>
+                <tbody id="rekap-body"></tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -79,9 +103,9 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 const absensiBody = document.getElementById("absensi-body");
+const rekapBody = document.getElementById("rekap-body");
 const filterKelas = document.getElementById("filterKelas");
 const filterGuru = document.getElementById("filterGuru");
-const tvKosong = document.getElementById("tvKosong");
 
 let allSiswa = [];
 let allGuru = [];
@@ -119,14 +143,13 @@ db.collection("siswa").get().then(snapshot=>{
     });
     kelasSet.forEach(k=>{
         const opt = document.createElement("option");
-        opt.value = k;
-        opt.textContent = k;
+        opt.value=k; opt.textContent=k;
         filterKelas.appendChild(opt);
     });
     updateTable(allSiswa); // tampil awal semua siswa
 });
 
-// Update tabel
+// Update tabel absensi dengan highlight
 function updateTable(data, highlightNIS=[]){
     absensiBody.innerHTML="";
     data.forEach((s,index)=>{
@@ -142,48 +165,78 @@ function updateTable(data, highlightNIS=[]){
     });
 }
 
-// Apply filter kelas & guru
-function applyFilter() {
+// Filter kelas & guru
+function applyFilter(){
     const selectedKelas = filterKelas.value;
     const selectedGuru = filterGuru.value;
 
     let data = allSiswa;
 
-    if(selectedKelas) data = data.filter(s=>s.kelas === selectedKelas);
+    if(selectedKelas) data = data.filter(s=>s.kelas===selectedKelas);
     if(selectedGuru){
         const guru = allGuru.find(g=>String(g.nip)===String(selectedGuru));
-        data = data.filter(s=>guru?.daftarNIS.includes(String(s.nis)));
-    }
-
-    if(data.length === 0){
-        tvKosong.style.display = "block";
-        document.getElementById("absensi-wrapper").style.display = "none";
-    } else {
-        tvKosong.style.display = "none";
-        document.getElementById("absensi-wrapper").style.display = "block";
+        data = data.filter(s=>guru?.daftarNIS?.includes(String(s.nis)));
     }
 
     updateTable(data);
     return data;
 }
 
-// Event listeners
-filterKelas.addEventListener("change", applyFilter);
-filterGuru.addEventListener("change", applyFilter);
+// Rekap
+function updateRekap(){
+    const data = applyFilter(); 
+    rekapBody.innerHTML="";
+    const total = data.length;
+    const hadir = data.filter(s=>s.status==="Hadir").length;
+    const perKelas = {};
+    const perGuru = {};
+    data.forEach(s=>{
+        perKelas[s.kelas] = (perKelas[s.kelas]||0)+1;
+        const guruObj = allGuru.find(g=>g.daftarNIS?.includes(String(s.nis)));
+        const guru = guruObj ? guruObj.nama : "Tidak ada";
+        perGuru[guru] = (perGuru[guru]||0)+1;
+    });
 
+    const addRow = (ket,jumlah,kelas=null,guruNip=null)=>{
+        const r = document.createElement("tr");
+        r.innerHTML = `<td>${ket}</td><td>${jumlah}</td>`;
+        if(kelas || guruNip){
+            r.style.cursor="pointer";
+            r.onclick = ()=>{
+                filterKelas.value = kelas || "";
+                filterGuru.value = guruNip || "";
+                const filtered = applyFilter();
+                const highlightNIS = filtered.map(s=>String(s.nis));
+                updateTable(filtered, highlightNIS);
+            };
+        }
+        rekapBody.appendChild(r);
+    }
+
+    addRow("Total Siswa", total);
+    addRow("Hadir", hadir);
+    Object.keys(perKelas).forEach(k=>addRow("Kelas "+k, perKelas[k], k));
+    Object.keys(perGuru).forEach(g=>{
+        const guruObj = allGuru.find(gr=>gr.nama===g);
+        const guruNip = guruObj ? guruObj.nip : null;
+        addRow("Guru "+g, perGuru[g], null, guruNip);
+    });
+}
+
+// Event listeners
 document.getElementById("btnAll").addEventListener("click", ()=>{
-    filterKelas.value="";
-    filterGuru.value="";
-    tvKosong.style.display = "none";
-    document.getElementById("absensi-wrapper").style.display = "block";
+    filterKelas.value=""; filterGuru.value="";
     updateTable(allSiswa);
 });
+filterKelas.addEventListener("change", applyFilter);
+filterGuru.addEventListener("change", applyFilter);
+document.getElementById("btnRekap").addEventListener("click", updateRekap);
 
-// Realtime absensi hari ini
+// Realtime absensi
 db.collection("absensi").doc(getToday()).onSnapshot(doc=>{
     const data = doc.data() || {};
     allSiswa = Object.values(data).map(s=>{
-        s.nis = String(s.nis);
+        s.nis = String(s.nis); 
         return s;
     });
     applyFilter();
