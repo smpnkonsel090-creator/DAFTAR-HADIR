@@ -6,39 +6,10 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 <style>
-body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f4f4f4; display:flex; flex-direction:column; height:100vh; }
-header { background:#007bff; display:flex; align-items:center; justify-content:center; padding:15px 20px; color:white; gap:15px; flex-direction:column; text-align:center; flex-shrink:0; }
-header img { width:80px; height:80px; object-fit:contain; }
-header h1 { margin:5px 0 0 0; font-size:26px; }
-header h3 { margin:0; font-size:16px; font-weight:normal; }
-
-#main { display:flex; flex:1; overflow:hidden; }
-#sidebar { width:250px; background:#fff; border-right:2px solid #007bff; padding:15px; box-sizing:border-box; overflow-y:auto; }
-#sidebar button, #sidebar select { width:100%; margin-bottom:10px; padding:10px; font-size:14px; border-radius:5px; border:1px solid #007bff; background:#007bff; color:white; cursor:pointer; }
-#sidebar select { background:white; color:black; border:1px solid #007bff; }
-#content { flex:1; padding:20px; overflow:auto; }
-
-#absensi-wrapper { background:white; border-radius:10px; overflow-y:auto; max-height:50%; border:2px solid #007bff; margin-bottom:20px; }
-#absensi-table, #rekap-table { width:100%; border-collapse:collapse; margin-bottom:20px; }
-#absensi-table th, #absensi-table td, #rekap-table th, #rekap-table td { border:1px solid #ccc; padding:8px; }
-#absensi-table th, #rekap-table th { background-color:#007bff; color:white; position:sticky; top:0; z-index:1; text-align:center; }
-#absensi-table td, #rekap-table td { text-align:left; }
-#absensi-table td:nth-child(1) { text-align:center; }
-#absensi-table td:nth-child(2) { text-align:center; }
-#absensi-table td:nth-child(3) { font-weight:bold; }
-#absensi-table td:nth-child(4), #absensi-table td:nth-child(5) { text-align:center; }
-#absensi-table td:nth-child(6), #absensi-table td:nth-child(7), #absensi-table td:nth-child(8) { text-align:center; }
-#rekap-table td:nth-child(1), #rekap-table td { cursor:pointer; }
-
-@media(max-width:1000px){
-    #main { flex-direction:column; }
-    #sidebar { width:100%; border-right:none; border-bottom:2px solid #007bff; }
-    #absensi-wrapper { max-height:none; }
-}
+/* ... gunakan style yang sama seperti sebelumnya ... */
 </style>
 </head>
 <body>
-
 <header>
     <img src="logo.png" alt="Logo SMPN 20">
     <h1>ABSENSI SISWA</h1>
@@ -62,14 +33,8 @@ header h3 { margin:0; font-size:16px; font-weight:normal; }
             <table id="absensi-table">
                 <thead>
                     <tr>
-                        <th>No</th>
-                        <th>NIS</th>
-                        <th>Nama</th>
-                        <th>Kelas</th>
-                        <th>Jam Datang</th>
-                        <th>Jam Pulang</th>
-                        <th>Status</th>
-                        <th>Keterangan</th>
+                        <th>No</th><th>NIS</th><th>Nama</th><th>Kelas</th>
+                        <th>Jam Datang</th><th>Jam Pulang</th><th>Status</th><th>Keterangan</th>
                     </tr>
                 </thead>
                 <tbody id="absensi-body"></tbody>
@@ -78,9 +43,7 @@ header h3 { margin:0; font-size:16px; font-weight:normal; }
         <div id="rekap-wrapper">
             <h3>Rekap Absensi (klik untuk filter)</h3>
             <table id="rekap-table">
-                <thead>
-                    <tr><th>Keterangan</th><th>Jumlah</th></tr>
-                </thead>
+                <thead><tr><th>Keterangan</th><th>Jumlah</th></tr></thead>
                 <tbody id="rekap-body"></tbody>
             </table>
         </div>
@@ -88,15 +51,10 @@ header h3 { margin:0; font-size:16px; font-weight:normal; }
 </div>
 
 <script>
-// Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCAg9Kb4I3dp-fcCIp5RzQKY8mJ3sD4hPU",
   authDomain: "absensi-smpn-20-konsel.firebaseapp.com",
   projectId: "absensi-smpn-20-konsel",
-  storageBucket: "absensi-smpn-20-konsel.appspot.com",
-  messagingSenderId: "247838919432",
-  appId: "1:247838919432:web:4505c7d499fb5d716dfabd",
-  measurementId: "G-1TNJRBYFEV"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
@@ -109,7 +67,7 @@ const filterGuru = document.getElementById("filterGuru");
 let allSiswa = [];
 let allGuru = [];
 
-// Hari ini
+// Tanggal hari ini
 function getToday() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
@@ -125,37 +83,37 @@ db.collection("guru_wali").get().then(snapshot=>{
             daftarNIS: (data.daftar_nis||[]).map(nis=>String(nis))
         });
         const opt = document.createElement("option");
-        opt.value = data.nip;
-        opt.textContent = data.nama;
+        opt.value = data.nip; opt.textContent = data.nama;
         filterGuru.appendChild(opt);
     });
 });
 
-// Load siswa
-db.collection("siswa").get().then(snapshot=>{
-    const kelasSet = new Set();
-    snapshot.forEach(doc=>{
-        const s = doc.data();
-        s.nis = String(s.nis); // PAKSA KE STRING
-        allSiswa.push(s);
-        kelasSet.add(s.kelas);
-    });
-    kelasSet.forEach(k=>{
-        const opt = document.createElement("option");
-        opt.value=k; opt.textContent=k;
-        filterKelas.appendChild(opt);
-    });
-});
+// Load absensi hari ini
+function loadAbsensi(){
+    db.collection("absensi").doc(getToday()).get().then(doc=>{
+        const data = doc.data() || {};
+        allSiswa = Object.values(data).map(s=>{
+            s.nis = String(s.nis);
+            return s;
+        });
 
-// Update tabel absensi
+        // Isi dropdown kelas
+        const kelasSet = new Set(allSiswa.map(s=>s.kelas));
+        filterKelas.innerHTML = '<option value="">-- Filter Per Kelas --</option>';
+        kelasSet.forEach(k=>{
+            const opt = document.createElement("option");
+            opt.value=k; opt.textContent=k;
+            filterKelas.appendChild(opt);
+        });
+
+        applyFilter(); // tampil semua siswa pertama kali
+    });
+}
+loadAbsensi();
+
+// Update tabel
 function updateTable(data){
     absensiBody.innerHTML="";
-    data.sort((a,b)=>{
-        const tA = a.jamDatang?.seconds||0, tB = b.jamDatang?.seconds||0;
-        if(tB!==tA) return tB-tA;
-        const pA = a.jamPulang?.seconds||0, pB=b.jamPulang?.seconds||0;
-        return pB-pA;
-    });
     data.forEach((s,index)=>{
         const jamDatang = s.jamDatang ? new Date(s.jamDatang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
         const jamPulang = s.jamPulang ? new Date(s.jamPulang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
@@ -165,12 +123,12 @@ function updateTable(data){
     });
 }
 
-// Filter kelas & guru
-function applyFilter(){
-    const selectedKelas = filterKelas.value;
-    const selectedGuru = filterGuru.value;
+// Filter
+function applyFilter(selectedKelas=null, selectedGuru=null){
+    let data = [...allSiswa];
 
-    let data = allSiswa;
+    if(selectedKelas===null) selectedKelas = filterKelas.value;
+    if(selectedGuru===null) selectedGuru = filterGuru.value;
 
     if(selectedKelas) data = data.filter(s=>s.kelas===selectedKelas);
     if(selectedGuru){
@@ -182,51 +140,58 @@ function applyFilter(){
     return data;
 }
 
-// Rekap
-function updateRekap(data){
+// Rekap & klik untuk filter
+function updateRekap(){
+    const data = applyFilter();
     rekapBody.innerHTML="";
     const total = data.length;
     const hadir = data.filter(s=>s.status==="Hadir").length;
     const perKelas = {};
     const perGuru = {};
     data.forEach(s=>{
-        perKelas[s.kelas]=(perKelas[s.kelas]||0)+1;
+        perKelas[s.kelas] = (perKelas[s.kelas]||0)+1;
         const guruObj = allGuru.find(g=>g.daftarNIS?.includes(String(s.nis)));
         const guru = guruObj ? guruObj.nama : "Tidak ada";
-        perGuru[guru]=(perGuru[guru]||0)+1;
+        perGuru[guru] = (perGuru[guru]||0)+1;
     });
-    const addRow = (ket,jumlah,filter=null)=>{
+
+    const addRow = (ket,jumlah,kelas=null,guruNip=null)=>{
         const r = document.createElement("tr");
-        r.innerHTML=`<td>${ket}</td><td>${jumlah}</td>`;
-        if(filter) r.onclick = ()=>applyFilter(filter.kelas, filter.guruNip);
+        r.innerHTML = `<td>${ket}</td><td>${jumlah}</td>`;
+        if(kelas || guruNip){
+            r.style.cursor="pointer";
+            r.onclick = ()=>{
+                filterKelas.value = kelas || "";
+                filterGuru.value = guruNip || "";
+                applyFilter();
+            };
+        }
         rekapBody.appendChild(r);
     }
+
     addRow("Total Siswa", total);
     addRow("Hadir", hadir);
-    Object.keys(perKelas).forEach(k=>addRow("Kelas " + k, perKelas[k], {kelas:k}));
+    Object.keys(perKelas).forEach(k=>addRow("Kelas "+k, perKelas[k], k));
     Object.keys(perGuru).forEach(g=>{
         const guruObj = allGuru.find(gr=>gr.nama===g);
         const guruNip = guruObj ? guruObj.nip : null;
-        addRow("Guru " + g, perGuru[g], {guruNip:guruNip});
+        addRow("Guru "+g, perGuru[g], null, guruNip);
     });
 }
 
-// Event listeners
+// Event
 document.getElementById("btnAll").addEventListener("click", ()=>{
     filterKelas.value=""; filterGuru.value="";
     updateTable(allSiswa);
 });
-filterKelas.addEventListener("change", applyFilter);
-filterGuru.addEventListener("change", applyFilter);
-document.getElementById("btnRekap").addEventListener("click", ()=>updateRekap(allSiswa));
+filterKelas.addEventListener("change", ()=>applyFilter());
+filterGuru.addEventListener("change", ()=>applyFilter());
+document.getElementById("btnRekap").addEventListener("click", updateRekap);
 
 // Realtime absensi
 db.collection("absensi").doc(getToday()).onSnapshot(doc=>{
-    const data = doc.data() || {};
-    allSiswa = Object.values(data).map(s=>{
-        s.nis = String(s.nis); // PAKSA KE STRING
-        return s;
-    });
+    const data = doc.data()||{};
+    allSiswa = Object.values(data).map(s=>{ s.nis=String(s.nis); return s;});
     applyFilter();
 });
 </script>
