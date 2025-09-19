@@ -6,29 +6,41 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 <style>
-body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f4f4f4; display:flex; flex-direction:column; height:100vh; }
-header { background:#007bff; color:white; padding:15px; text-align:center; }
-#content { flex:1; padding:20px; overflow:auto; }
-#absensi-wrapper { background:white; border-radius:10px; overflow-y:auto; border:2px solid #007bff; margin-bottom:20px; }
+body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f4f4f4; }
+header { background:#007bff; display:flex; align-items:center; justify-content:center; padding:15px 20px; color:white; gap:15px; flex-direction:column; text-align:center; }
+header img { width:80px; height:80px; object-fit:contain; }
+header h1 { margin:5px 0 0 0; font-size:26px; }
+header h3 { margin:0; font-size:16px; font-weight:normal; }
+#container { display:flex; gap:20px; padding:20px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+#absensi-wrapper { flex:1 1 700px; background:white; border-radius:10px; overflow-y:auto; max-height:480px; border:2px solid #007bff; }
 #absensi-table { width:100%; border-collapse:collapse; }
-#absensi-table th, #absensi-table td { border:1px solid #ccc; padding:8px; text-align:center; }
-.highlight { background-color:#ffff99 !important; }
-#tvKosong { display:none; text-align:center; font-weight:bold; color:red; margin-top:20px; }
+#absensi-table th, #absensi-table td { border:1px solid #ccc; padding:8px; }
+#absensi-table th { background-color:#007bff; color:white; position:sticky; top:0; z-index:1; text-align:center; }
+#absensi-table td { text-align:left; }
+#absensi-table td:nth-child(1), #absensi-table td:nth-child(3),
+#absensi-table td:nth-child(4), #absensi-table td:nth-child(5),
+#absensi-table td:nth-child(6), #absensi-table td:nth-child(7) { text-align:center; }
+#absensi-table td:nth-child(2) { text-align:left; font-weight:bold; }
+/* Responsif */
+@media(max-width:1000px){
+    #container { flex-direction:column; align-items:center; }
+    #absensi-wrapper { width:90%; max-width:800px; }
+}
 </style>
 </head>
 <body>
 
 <header>
+    <img src="logo.png" alt="Logo SMPN 20">
     <h1>ABSENSI SISWA</h1>
     <h3>SMPN 20 Konawe Selatan</h3>
 </header>
 
-<div id="content">
+<div id="container">
     <div id="absensi-wrapper">
         <table id="absensi-table">
             <thead>
                 <tr>
-                    <th>No</th>
                     <th>NIS</th>
                     <th>Nama</th>
                     <th>Kelas</th>
@@ -41,7 +53,6 @@ header { background:#007bff; color:white; padding:15px; text-align:center; }
             <tbody id="absensi-body"></tbody>
         </table>
     </div>
-    <p id="tvKosong">Kosong</p>
 </div>
 
 <script>
@@ -59,46 +70,38 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 const absensiBody = document.getElementById("absensi-body");
-const tvKosong = document.getElementById("tvKosong");
 
-let allSiswa = [];
-
-// Hari ini
-function getToday() {
+function getToday(){
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth()+1).padStart(2,'0');
+    const dd = String(now.getDate()).padStart(2,'0');
+    return `${yyyy}-${mm}-${dd}`;
 }
 
-// Update tabel
-function updateTable(data){
-    absensiBody.innerHTML="";
-    if(data.length === 0){
-        tvKosong.style.display = "block";
-        document.getElementById("absensi-wrapper").style.display = "none";
-        return;
-    } else {
-        tvKosong.style.display = "none";
-        document.getElementById("absensi-wrapper").style.display = "block";
-    }
+// Update tabel realtime (siswa absen terakhir di atas)
+function updateAbsensiTableRealtime(today){
+    db.collection("absensi").doc(today).onSnapshot(doc=>{
+        const data = doc.data() || {};
+        const siswaArr = Object.values(data).sort((a,b)=>{
+            const tA = a.jamPulang ? a.jamPulang.seconds : (a.jamDatang ? a.jamDatang.seconds : 0);
+            const tB = b.jamPulang ? b.jamPulang.seconds : (b.jamDatang ? b.jamDatang.seconds : 0);
+            return tB - tA; // descending, absen terakhir di atas
+        });
 
-    data.forEach((s,index)=>{
-        const jamDatang = s.jamDatang ? new Date(s.jamDatang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
-        const jamPulang = s.jamPulang ? new Date(s.jamPulang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
-        const row = document.createElement("tr");
-        row.innerHTML = `<td>${index+1}</td><td>${s.nis}</td><td>${s.nama}</td><td>${s.kelas}</td><td>${jamDatang}</td><td>${jamPulang}</td><td>${s.status}</td><td>${s.keterangan||''}</td>`;
-        absensiBody.appendChild(row);
+        absensiBody.innerHTML="";
+        siswaArr.forEach(siswa=>{
+            const jamDatang = siswa.jamDatang ? new Date(siswa.jamDatang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
+            const jamPulang = siswa.jamPulang ? new Date(siswa.jamPulang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
+            const row = document.createElement("tr");
+            row.innerHTML = `<td>${siswa.nis}</td><td>${siswa.nama}</td><td>${siswa.kelas}</td><td>${jamDatang}</td><td>${jamPulang}</td><td>${siswa.status}</td><td>${siswa.keterangan}</td>`;
+            absensiBody.appendChild(row);
+        });
     });
 }
 
-// Realtime absensi hari ini
-db.collection("absensi").doc(getToday()).onSnapshot(doc=>{
-    const data = doc.data() || {};
-    allSiswa = Object.values(data).map(s=>{
-        s.nis = String(s.nis);
-        return s;
-    });
-    updateTable(allSiswa);
-});
+// Inisialisasi
+updateAbsensiTableRealtime(getToday());
 </script>
 </body>
 </html>
