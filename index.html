@@ -109,6 +109,7 @@ const filterGuru = document.getElementById("filterGuru");
 
 let allSiswa = [];
 let allGuru = [];
+let absensiHariIni = {};
 
 // Hari ini
 function getToday() {
@@ -153,10 +154,15 @@ db.collection("siswa").get().then(snapshot=>{
 function updateTable(data, highlightNIS=[]){
     absensiBody.innerHTML="";
     data.forEach((s,index)=>{
-        const jamDatang = s.jamDatang ? new Date(s.jamDatang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
-        const jamPulang = s.jamPulang ? new Date(s.jamPulang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
+        // ambil data absensi jika ada
+        const absen = absensiHariIni[s.nis] || {};
+        const jamDatang = absen.jamDatang ? new Date(absen.jamDatang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
+        const jamPulang = absen.jamPulang ? new Date(absen.jamPulang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
+        const status = absen.status || '';
+        const ket = absen.keterangan || '';
+
         const row = document.createElement("tr");
-        row.innerHTML = `<td>${index+1}</td><td>${s.nis}</td><td>${s.nama}</td><td>${s.kelas}</td><td>${jamDatang}</td><td>${jamPulang}</td><td>${s.status}</td><td>${s.keterangan||''}</td>`;
+        row.innerHTML = `<td>${index+1}</td><td>${s.nis}</td><td>${s.nama}</td><td>${s.kelas}</td><td>${jamDatang}</td><td>${jamPulang}</td><td>${status}</td><td>${ket}</td>`;
         
         if(highlightNIS.includes(String(s.nis))){
             row.classList.add("highlight");
@@ -186,8 +192,14 @@ function applyFilter(){
 function updateRekap(){
     const data = applyFilter(); 
     rekapBody.innerHTML="";
+
     const total = data.length;
-    const hadir = data.filter(s=>s.status==="Hadir").length;
+    const hadir = data.filter(s=> (absensiHariIni[s.nis]?.status==="Hadir")).length;
+    const izin = data.filter(s=> (absensiHariIni[s.nis]?.status==="Izin")).length;
+    const sakit = data.filter(s=> (absensiHariIni[s.nis]?.status==="Sakit")).length;
+    const ta = data.filter(s=> (absensiHariIni[s.nis]?.status==="TA")).length;
+    const tk = data.filter(s=> (absensiHariIni[s.nis]?.status==="TK")).length;
+
     const perKelas = {};
     const perGuru = {};
     data.forEach(s=>{
@@ -215,6 +227,11 @@ function updateRekap(){
 
     addRow("Total Siswa", total);
     addRow("Hadir", hadir);
+    addRow("Izin", izin);
+    addRow("Sakit", sakit);
+    addRow("Tanpa Keterangan", ta);
+    addRow("Terlambat", tk);
+
     Object.keys(perKelas).forEach(k=>addRow("Kelas "+k, perKelas[k], k));
     Object.keys(perGuru).forEach(g=>{
         const guruObj = allGuru.find(gr=>gr.nama===g);
@@ -232,15 +249,13 @@ filterKelas.addEventListener("change", applyFilter);
 filterGuru.addEventListener("change", applyFilter);
 document.getElementById("btnRekap").addEventListener("click", updateRekap);
 
-// Realtime absensi
+// Realtime absensi → merge ke allSiswa
 db.collection("absensi").doc(getToday()).onSnapshot(doc=>{
-    const data = doc.data() || {};
-    allSiswa = Object.values(data).map(s=>{
-        s.nis = String(s.nis); 
-        return s;
-    });
+    absensiHariIni = doc.data() || {};
     applyFilter();
 });
 </script>
+
 </body>
 </html>  kenapa hanya satu guru saja siswanya yang muncul 
+
