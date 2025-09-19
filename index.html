@@ -118,11 +118,15 @@ function getToday() {
 // Load guru
 db.collection("guru_wali").get().then(snapshot=>{
     snapshot.forEach(doc=>{
-        const guru = doc.data();
-        allGuru.push(guru);
+        const data = doc.data();
+        allGuru.push({
+            nama: data.nama,
+            nip: data.nip,
+            daftarNIS: data.daftar_nis || []   // <-- normalisasi agar filter guru jalan
+        });
         const opt = document.createElement("option");
-        opt.value = guru.nip;
-        opt.textContent = guru.nama;
+        opt.value = data.nip;
+        opt.textContent = data.nama;
         filterGuru.appendChild(opt);
     });
 });
@@ -160,7 +164,7 @@ function updateTable(data){
     });
 }
 
-// Filter kelas & guru
+// Filter kelas & guru (logika sama seperti APK)
 function applyFilter(){
     const selectedKelas = filterKelas.value;
     const selectedGuru = filterGuru.value;
