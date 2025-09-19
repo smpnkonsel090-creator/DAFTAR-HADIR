@@ -1,19 +1,215 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Absensi Scanner Web</title>
-  <link rel="stylesheet" href="style.css">
-  <script type="module" src="config.js"></script>
-  <script type="module" src="scanner.js"></script>
+<meta charset="UTF-8">
+<title>Absensi Siswa</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+<style>
+body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f4f4f4; display:flex; flex-direction:column; height:100vh; }
+header { background:#007bff; display:flex; align-items:center; justify-content:center; padding:15px 20px; color:white; gap:15px; flex-direction:column; text-align:center; flex-shrink:0; }
+header img { width:80px; height:80px; object-fit:contain; }
+header h1 { margin:5px 0 0 0; font-size:26px; }
+header h3 { margin:0; font-size:16px; font-weight:normal; }
+
+#main { display:flex; flex:1; overflow:hidden; }
+#sidebar { width:250px; background:#fff; border-right:2px solid #007bff; padding:15px; box-sizing:border-box; overflow-y:auto; }
+#sidebar button, #sidebar select { width:100%; margin-bottom:10px; padding:10px; font-size:14px; border-radius:5px; border:1px solid #007bff; background:#007bff; color:white; cursor:pointer; }
+#sidebar select { background:white; color:black; border:1px solid #007bff; }
+#content { flex:1; padding:20px; overflow:auto; }
+
+#absensi-wrapper { background:white; border-radius:10px; overflow-y:auto; max-height:calc(50% - 20px); border:2px solid #007bff; margin-bottom:20px; }
+#absensi-table, #rekap-table { width:100%; border-collapse:collapse; margin-bottom:20px; }
+#absensi-table th, #absensi-table td, #rekap-table th, #rekap-table td { border:1px solid #ccc; padding:8px; }
+#absensi-table th, #rekap-table th { background-color:#007bff; color:white; position:sticky; top:0; z-index:1; text-align:center; }
+#absensi-table td, #rekap-table td { text-align:left; }
+#absensi-table td:nth-child(1), #absensi-table td:nth-child(3),
+#absensi-table td:nth-child(4), #absensi-table td:nth-child(5),
+#absensi-table td:nth-child(6), #absensi-table td:nth-child(7) { text-align:center; }
+#absensi-table td:nth-child(2) { text-align:left; font-weight:bold; }
+#rekap-table td:nth-child(1) { font-weight:bold; }
+/* Responsif */
+@media(max-width:1000px){
+    #main { flex-direction:column; }
+    #sidebar { width:100%; border-right:none; border-bottom:2px solid #007bff; }
+    #absensi-wrapper { max-height:none; }
+}
+</style>
 </head>
 <body>
-  <h2>QR Scanner Absensi</h2>
 
-  <button id="startBtn">Mulai Scanner</button>
+<header>
+    <img src="logo.png" alt="Logo SMPN 20">
+    <h1>ABSENSI SISWA</h1>
+    <h3>SMPN 20 Konawe Selatan</h3>
+</header>
 
-  <div id="reader" style="width:400px;height:300px;"></div>
-  <p id="status">Menunggu scan...</p>
+<div id="main">
+    <div id="sidebar">
+        <button id="btnAll">Semua Siswa</button>
+        <select id="filterKelas">
+            <option value="">-- Filter Per Kelas --</option>
+        </select>
+        <select id="filterGuru">
+            <option value="">-- Filter Per Guru --</option>
+        </select>
+        <button id="btnRekap">Tampilkan Rekap</button>
+    </div>
+
+    <div id="content">
+        <div id="absensi-wrapper">
+            <table id="absensi-table">
+                <thead>
+                    <tr>
+                        <th>NIS</th>
+                        <th>Nama</th>
+                        <th>Kelas</th>
+                        <th>Jam Datang</th>
+                        <th>Jam Pulang</th>
+                        <th>Status</th>
+                        <th>Keterangan</th>
+                    </tr>
+                </thead>
+                <tbody id="absensi-body"></tbody>
+            </table>
+        </div>
+        <div id="rekap-wrapper">
+            <h3>Rekap Absensi</h3>
+            <table id="rekap-table">
+                <thead>
+                    <tr><th>Keterangan</th><th>Jumlah</th></tr>
+                </thead>
+                <tbody id="rekap-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+// Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyCAg9Kb4I3dp-fcCIp5RzQKY8mJ3sD4hPU",
+  authDomain: "absensi-smpn-20-konsel.firebaseapp.com",
+  projectId: "absensi-smpn-20-konsel",
+  storageBucket: "absensi-smpn-20-konsel.appspot.com",
+  messagingSenderId: "247838919432",
+  appId: "1:247838919432:web:4505c7d499fb5d716dfabd",
+  measurementId: "G-1TNJRBYFEV"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const absensiBody = document.getElementById("absensi-body");
+const rekapBody = document.getElementById("rekap-body");
+const filterKelas = document.getElementById("filterKelas");
+const filterGuru = document.getElementById("filterGuru");
+
+function getToday(){
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth()+1).padStart(2,'0');
+    const dd = String(now.getDate()).padStart(2,'0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+// Load siswa & populate filter dropdown
+let allSiswa = [];
+db.collection("siswa").get().then(snapshot=>{
+    const kelasSet = new Set();
+    const guruSet = new Set();
+    snapshot.forEach(doc=>{
+        const s = doc.data();
+        allSiswa.push(s);
+        kelasSet.add(s.kelas);
+        guruSet.add(s.guru ?? "Tidak ada");
+    });
+    kelasSet.forEach(k => {
+        const opt = document.createElement("option");
+        opt.value = k; opt.textContent = k;
+        filterKelas.appendChild(opt);
+    });
+    guruSet.forEach(g => {
+        const opt = document.createElement("option");
+        opt.value = g; opt.textContent = g;
+        filterGuru.appendChild(opt);
+    });
+});
+
+// Update tabel absensi
+function updateTable(data){
+    absensiBody.innerHTML="";
+    data.forEach(siswa=>{
+        const jamDatang = siswa.jamDatang ? new Date(siswa.jamDatang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
+        const jamPulang = siswa.jamPulang ? new Date(siswa.jamPulang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${siswa.nis}</td><td>${siswa.nama}</td><td>${siswa.kelas}</td><td>${jamDatang}</td><td>${jamPulang}</td><td>${siswa.status}</td><td>${siswa.keterangan}</td>`;
+        absensiBody.appendChild(row);
+    });
+}
+
+// Filter helper
+function applyFilter(){
+    let data = allSiswa;
+    const kelas = filterKelas.value;
+    const guru = filterGuru.value;
+    if(kelas) data = data.filter(s=>s.kelas===kelas);
+    if(guru) data = data.filter(s=>s.guru===guru);
+    updateTable(data);
+}
+
+// Rekap
+function updateRekap(data){
+    const total = data.length;
+    const hadir = data.filter(s=>s.status==="Hadir").length;
+    const terlambat = data.filter(s=>s.keterangan==="Terlambat").length;
+    const perKelas = {};
+    const perGuru = {};
+    data.forEach(s=>{
+        perKelas[s.kelas] = (perKelas[s.kelas]||0)+1;
+        const guru = s.guru || "Tidak ada";
+        perGuru[guru] = (perGuru[guru]||0)+1;
+    });
+    rekapBody.innerHTML="";
+    const addRow = (ket, jumlah)=>{ 
+        const r = document.createElement("tr"); 
+        r.innerHTML=`<td>${ket}</td><td>${jumlah}</td>`; 
+        rekapBody.appendChild(r); 
+    }
+    addRow("Total Siswa", total);
+    addRow("Hadir", hadir);
+    addRow("Terlambat", terlambat);
+    Object.keys(perKelas).forEach(k=>addRow("Kelas " + k, perKelas[k]));
+    Object.keys(perGuru).forEach(g=>addRow("Guru " + g, perGuru[g]));
+}
+
+// Realtime absensi
+function listenAbsensi(today){
+    db.collection("absensi").doc(today).onSnapshot(doc=>{
+        const data = doc.data() || {};
+        const siswaArr = Object.values(data).sort((a,b)=>{
+            const tA = a.jamDatang ? a.jamDatang.seconds : 0;
+            const tB = b.jamDatang ? b.jamDatang.seconds : 0;
+            return tB - tA;
+        });
+        allSiswa = siswaArr; // update master list
+        applyFilter();
+    });
+}
+
+// Event listeners
+document.getElementById("btnAll").addEventListener("click", ()=>{
+    filterKelas.value=""; filterGuru.value="";
+    updateTable(allSiswa);
+});
+filterKelas.addEventListener("change", applyFilter);
+filterGuru.addEventListener("change", applyFilter);
+document.getElementById("btnRekap").addEventListener("click", ()=>{
+    updateRekap(allSiswa);
+});
+
+// Init
+const today = getToday();
+listenAbsensi(today);
+</script>
 </body>
 </html>
