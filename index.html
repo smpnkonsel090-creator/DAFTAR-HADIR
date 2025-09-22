@@ -7,9 +7,10 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 <style>
 body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f4f4f4; display:flex; flex-direction:column; height:100vh; }
-header { background:#007bff; display:flex; align-items:center; justify-content:center; padding:15px 20px; color:white; gap:15px; flex-direction:column; text-align:center; flex-shrink:0; }
-header img { width:80px; height:80px; object-fit:contain; }
-header h1 { margin:5px 0 0 0; font-size:26px; }
+header { background:#007bff; display:flex; align-items:center; justify-content:flex-start; padding:15px 20px; color:white; gap:15px; flex-shrink:0; }
+header img { width:70px; height:70px; object-fit:contain; }
+header div { display:flex; flex-direction:column; }
+header h1 { margin:0; font-size:26px; }
 header h3 { margin:0; font-size:16px; font-weight:normal; }
 
 #main { display:flex; flex:1; overflow:hidden; }
@@ -29,7 +30,9 @@ header h3 { margin:0; font-size:16px; font-weight:normal; }
 #absensi-table td:nth-child(6), #absensi-table td:nth-child(7), #absensi-table td:nth-child(8) { text-align:center; }
 #rekap-table td:nth-child(1), #rekap-table td { cursor:pointer; }
 
-.highlight { background-color:#ffff99 !important; } /* warna highlight */
+.highlight { background-color:#ffff99 !important; } /* klik highlight */
+.absen-datang { background-color:#ccffcc !important; } /* hijau muda */
+.absen-pulang { background-color:#cce5ff !important; } /* biru muda */
 
 @media(max-width:1000px){
     #main { flex-direction:column; }
@@ -42,8 +45,10 @@ header h3 { margin:0; font-size:16px; font-weight:normal; }
 
 <header>
     <img src="logo.png" alt="Logo SMPN 20">
-    <h1>ABSENSI SISWA</h1>
-    <h3>SMPN 20 Konawe Selatan</h3>
+    <div>
+        <h1>ABSENSI SISWA</h1>
+        <h3>SMPN 20 Konawe Selatan</h3>
+    </div>
 </header>
 
 <div id="main">
@@ -158,9 +163,11 @@ function updateTable(data, highlightNIS=[]){
         const row = document.createElement("tr");
         row.innerHTML = `<td>${index+1}</td><td>${s.nis}</td><td>${s.nama}</td><td>${s.kelas}</td><td>${jamDatang}</td><td>${jamPulang}</td><td>${s.status}</td><td>${s.keterangan||''}</td>`;
         
-        if(highlightNIS.includes(String(s.nis))){
-            row.classList.add("highlight");
-        }
+        // Highlight otomatis
+        if(s.jamDatang) row.classList.add("absen-datang");
+        if(s.jamPulang) row.classList.add("absen-pulang");
+        if(highlightNIS.includes(String(s.nis))) row.classList.add("highlight");
+
         absensiBody.appendChild(row);
     });
 }
@@ -187,7 +194,8 @@ function updateRekap(){
     const data = applyFilter(); 
     rekapBody.innerHTML="";
     const total = data.length;
-    const hadir = data.filter(s=>s.status==="Hadir").length;
+    const sudahDatang = data.filter(s=>s.jamDatang).length;
+    const sudahPulang = data.filter(s=>s.jamPulang).length;
     const perKelas = {};
     const perGuru = {};
     data.forEach(s=>{
@@ -214,7 +222,8 @@ function updateRekap(){
     }
 
     addRow("Total Siswa", total);
-    addRow("Hadir", hadir);
+    addRow("Sudah Absen Jam Datang", sudahDatang);
+    addRow("Sudah Absen Jam Pulang", sudahPulang);
     Object.keys(perKelas).forEach(k=>addRow("Kelas "+k, perKelas[k], k));
     Object.keys(perGuru).forEach(g=>{
         const guruObj = allGuru.find(gr=>gr.nama===g);
