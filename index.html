@@ -121,17 +121,17 @@ function getToday() {
     return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 }
 
-// Load guru
+// Load guru wali
 db.collection("guru_wali").get().then(snapshot=>{
     snapshot.forEach(doc=>{
         const data = doc.data();
         allGuru.push({
+            id: doc.id, // ID dokumen guru wali
             nama: data.nama,
-            nip: data.nip,
             daftarNIS: (data.daftar_nis||[]).map(nis=>String(nis))
         });
         const opt = document.createElement("option");
-        opt.value = data.nip;
+        opt.value = doc.id;   // pakai ID dokumen
         opt.textContent = data.nama;
         filterGuru.appendChild(opt);
     });
@@ -154,16 +154,15 @@ db.collection("siswa").get().then(snapshot=>{
     updateTable(allSiswa); // tampil awal semua siswa
 });
 
-// Update tabel absensi dengan highlight
+// Update tabel absensi
 function updateTable(data, highlightNIS=[]){
     absensiBody.innerHTML="";
     data.forEach((s,index)=>{
         const jamDatang = s.jamDatang ? new Date(s.jamDatang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
         const jamPulang = s.jamPulang ? new Date(s.jamPulang.seconds*1000).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
         const row = document.createElement("tr");
-        row.innerHTML = `<td>${index+1}</td><td>${s.nis}</td><td>${s.nama}</td><td>${s.kelas}</td><td>${jamDatang}</td><td>${jamPulang}</td><td>${s.status}</td><td>${s.keterangan||''}</td>`;
+        row.innerHTML = `<td>${index+1}</td><td>${s.nis}</td><td>${s.nama}</td><td>${s.kelas}</td><td>${jamDatang}</td><td>${jamPulang}</td><td>${s.status||''}</td><td>${s.keterangan||''}</td>`;
         
-        // Highlight otomatis
         if(s.jamDatang) row.classList.add("absen-datang");
         if(s.jamPulang) row.classList.add("absen-pulang");
         if(highlightNIS.includes(String(s.nis))) row.classList.add("highlight");
@@ -181,7 +180,7 @@ function applyFilter(){
 
     if(selectedKelas) data = data.filter(s=>s.kelas===selectedKelas);
     if(selectedGuru){
-        const guru = allGuru.find(g=>String(g.nip)===String(selectedGuru));
+        const guru = allGuru.find(g=>g.id === selectedGuru);
         data = data.filter(s=>guru?.daftarNIS?.includes(String(s.nis)));
     }
 
@@ -205,14 +204,14 @@ function updateRekap(){
         perGuru[guru] = (perGuru[guru]||0)+1;
     });
 
-    const addRow = (ket,jumlah,kelas=null,guruNip=null)=>{
+    const addRow = (ket,jumlah,kelas=null,guruId=null)=>{
         const r = document.createElement("tr");
         r.innerHTML = `<td>${ket}</td><td>${jumlah}</td>`;
-        if(kelas || guruNip){
+        if(kelas || guruId){
             r.style.cursor="pointer";
             r.onclick = ()=>{
                 filterKelas.value = kelas || "";
-                filterGuru.value = guruNip || "";
+                filterGuru.value = guruId || "";
                 const filtered = applyFilter();
                 const highlightNIS = filtered.map(s=>String(s.nis));
                 updateTable(filtered, highlightNIS);
@@ -227,8 +226,8 @@ function updateRekap(){
     Object.keys(perKelas).forEach(k=>addRow("Kelas "+k, perKelas[k], k));
     Object.keys(perGuru).forEach(g=>{
         const guruObj = allGuru.find(gr=>gr.nama===g);
-        const guruNip = guruObj ? guruObj.nip : null;
-        addRow("Guru "+g, perGuru[g], null, guruNip);
+        const guruId = guruObj ? guruObj.id : null;
+        addRow("Guru "+g, perGuru[g], null, guruId);
     });
 }
 
