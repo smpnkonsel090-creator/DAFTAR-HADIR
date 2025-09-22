@@ -7,11 +7,36 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 <style>
 body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f4f4f4; display:flex; flex-direction:column; height:100vh; }
-header { background:#007bff; display:flex; align-items:center; justify-content:flex-start; padding:15px 20px; color:white; gap:15px; flex-shrink:0; }
-header img { width:70px; height:70px; object-fit:contain; }
-header div { display:flex; flex-direction:column; }
-header h1 { margin:0; font-size:26px; }
-header h3 { margin:0; font-size:16px; font-weight:normal; }
+header { 
+    background:#007bff; 
+    display:flex; 
+    align-items:center; 
+    justify-content:center;   /* isi rata tengah */
+    padding:10px 20px; 
+    color:white; 
+    gap:10px; 
+    flex-shrink:0; 
+    text-align:center;
+}
+header img { 
+    width:50px;    /* logo lebih kecil */
+    height:50px; 
+    object-fit:contain; 
+}
+header div { 
+    display:flex; 
+    flex-direction:column; 
+    align-items:center;       /* teks rata tengah */
+}
+header h1 { 
+    margin:0; 
+    font-size:22px;           /* judul lebih kecil */
+}
+header h3 { 
+    margin:0; 
+    font-size:14px; 
+    font-weight:normal; 
+}
 
 #main { display:flex; flex:1; overflow:hidden; }
 #sidebar { width:250px; background:#fff; border-right:2px solid #007bff; padding:15px; box-sizing:border-box; overflow-y:auto; }
@@ -30,9 +55,9 @@ header h3 { margin:0; font-size:16px; font-weight:normal; }
 #absensi-table td:nth-child(6), #absensi-table td:nth-child(7), #absensi-table td:nth-child(8) { text-align:center; }
 #rekap-table td:nth-child(1), #rekap-table td { cursor:pointer; }
 
-.highlight { background-color:#ffff99 !important; } /* klik highlight */
-.absen-datang { background-color:#ccffcc !important; } /* hijau muda */
-.absen-pulang { background-color:#cce5ff !important; } /* biru muda */
+.highlight { background-color:#ffff99 !important; }
+.absen-datang { background-color:#ccffcc !important; }
+.absen-pulang { background-color:#cce5ff !important; }
 
 @media(max-width:1000px){
     #main { flex-direction:column; }
@@ -126,12 +151,12 @@ db.collection("guru_wali").get().then(snapshot=>{
     snapshot.forEach(doc=>{
         const data = doc.data();
         allGuru.push({
-            id: doc.id, // ID dokumen guru wali
+            id: doc.id,
             nama: data.nama,
             daftarNIS: (data.daftar_nis||[]).map(nis=>String(nis))
         });
         const opt = document.createElement("option");
-        opt.value = doc.id;   // pakai ID dokumen
+        opt.value = doc.id;
         opt.textContent = data.nama;
         filterGuru.appendChild(opt);
     });
@@ -151,7 +176,7 @@ db.collection("siswa").get().then(snapshot=>{
         opt.value=k; opt.textContent=k;
         filterKelas.appendChild(opt);
     });
-    updateTable(allSiswa); // tampil awal semua siswa
+    updateTable(allSiswa);
 });
 
 // Update tabel absensi
